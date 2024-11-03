@@ -168,8 +168,7 @@ function onMountedHandler() {
 
     tipsModal.value = { show: false, msg: '', }
 
-    // loadPlayer(videoConfig.url)
-    loadPlayer('https://h5.chinaguandan.com/files/tmp/yixueqianchi.m3u8')
+    loadPlayer(videoConfig.url)
 
   } catch (e) {
     tipsModal.value = { show: true, msg: '播放参数解析失败', }
