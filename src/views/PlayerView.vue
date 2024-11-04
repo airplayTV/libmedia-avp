@@ -147,8 +147,8 @@ function onBeforeMountHandler() {
 
 function onMountedHandler() {
 
-  console.log('[参数说明]', { query: { config: btoa(JSON.stringify({ url: 'https://example.com/file.m3u8' })), } })
-  console.log('[query.config 生成步骤]', `const config = btoa(JSON.stringify({ url: 'https://example.com/file.m3u8' }))`)
+  console.log('[参数说明]', { query: { config: btoa(JSON.stringify({ url: encodeURIComponent('https://example.com/file中文.m3u8') })), } })
+  console.log('[query.config 生成步骤]', `const config = btoa(JSON.stringify({ url: encodeURIComponent('https://example.com/file中文.m3u8') }))`)
 
   // console.log('[debug]', btoa(JSON.stringify({
   //   url: 'https://h5.chinaguandan.com/files/tmp/yixueqianchi.m3u8',
@@ -168,7 +168,7 @@ function onMountedHandler() {
 
     tipsModal.value = { show: false, msg: '', }
 
-    loadPlayer(videoConfig.url)
+    loadPlayer(decodeURIComponent(videoConfig.url))
 
   } catch (e) {
     tipsModal.value = { show: true, msg: '播放参数解析失败', }
