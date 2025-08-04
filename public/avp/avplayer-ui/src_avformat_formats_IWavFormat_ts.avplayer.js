@@ -37,7 +37,7 @@
 class IFormat {
     type = -1 /* AVFormat.UNKNOWN */;
     onStreamAdd;
-    destroy(formatContext) { }
+    async destroy(formatContext) { }
 }
 
 
@@ -64,7 +64,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var avutil_util_avpacket__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! avutil/util/avpacket */ "./src/avutil/util/avpacket.ts");
 /* harmony import */ var _riff_iriff__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! ./riff/iriff */ "./src/avformat/formats/riff/iriff.ts");
 /* harmony import */ var avutil_util_pcm__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! avutil/util/pcm */ "./src/avutil/util/pcm.ts");
-var cheap__fileName__0 = "src\\avformat\\formats\\IWavFormat.ts";
+const cheap__fileName__0 = "src\\avformat\\formats\\IWavFormat.ts";
 
 
 
@@ -78,7 +78,7 @@ var cheap__fileName__0 = "src\\avformat\\formats\\IWavFormat.ts";
 
 const PACKET_SAMPLE_COUNT = 1024;
 class IWavFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_5__["default"] {
-    type = 14 /* AVFormat.WAV */;
+    type = 16 /* AVFormat.WAV */;
     dataSize;
     sampleCount;
     pcmStartPos;
@@ -194,8 +194,9 @@ class IWavFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_5__["default"] {
             return 0;
         }
         catch (error) {
-            if (formatContext.ioReader.error !== -1048576 /* IOError.END */) {
-                common_util_logger__WEBPACK_IMPORTED_MODULE_3__.error(`read packet error, ${error}`, cheap__fileName__0, 191);
+            if (formatContext.ioReader.error !== -1048576 /* IOError.END */
+                && formatContext.ioReader.error !== -1048572 /* IOError.ABORT */) {
+                common_util_logger__WEBPACK_IMPORTED_MODULE_3__.error(`read packet error, ${error}`, cheap__fileName__0, 193);
                 return avutil_error__WEBPACK_IMPORTED_MODULE_4__.DATA_INVALID;
             }
             return formatContext.ioReader.error;
@@ -242,18 +243,26 @@ class IWavFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_5__["default"] {
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   readFormatTag: () => (/* binding */ readFormatTag)
+/* harmony export */   readBmpHeader: () => (/* binding */ readBmpHeader),
+/* harmony export */   readFormatTag: () => (/* binding */ readFormatTag),
+/* harmony export */   readInfo: () => (/* binding */ readInfo),
+/* harmony export */   readWavHeader: () => (/* binding */ readWavHeader)
 /* harmony export */ });
-/* harmony import */ var cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! cheap/ctypeEnumRead */ "./src/cheap/ctypeEnumRead.ts");
-/* harmony import */ var cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! cheap/ctypeEnumWrite */ "./src/cheap/ctypeEnumWrite.ts");
-/* harmony import */ var common_util_logger__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! common/util/logger */ "./src/common/util/logger.ts");
-/* harmony import */ var avutil_error__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! avutil/error */ "./src/avutil/error.ts");
-/* harmony import */ var _riff__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./riff */ "./src/avformat/formats/riff/riff.ts");
-/* harmony import */ var avutil_util_pcm__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! avutil/util/pcm */ "./src/avutil/util/pcm.ts");
-/* harmony import */ var avutil_util_mem__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! avutil/util/mem */ "./src/avutil/util/mem.ts");
-/* harmony import */ var cheap_std_memory__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! cheap/std/memory */ "./src/cheap/std/memory.ts");
-/* harmony import */ var avutil_util_intread__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! avutil/util/intread */ "./src/avutil/util/intread.ts");
-var cheap__fileName__0 = "src\\avformat\\formats\\riff\\iriff.ts";
+/* unused harmony exports getWavCodecId, getGuidCodecId, readWaveformatex */
+/* harmony import */ var cheap_symbol__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! cheap/symbol */ "./src/cheap/symbol.ts");
+/* harmony import */ var cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! cheap/ctypeEnumRead */ "./src/cheap/ctypeEnumRead.ts");
+/* harmony import */ var cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! cheap/ctypeEnumWrite */ "./src/cheap/ctypeEnumWrite.ts");
+/* harmony import */ var common_util_logger__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! common/util/logger */ "./src/common/util/logger.ts");
+/* harmony import */ var avutil_error__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! avutil/error */ "./src/avutil/error.ts");
+/* harmony import */ var _riff__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./riff */ "./src/avformat/formats/riff/riff.ts");
+/* harmony import */ var avutil_util_pcm__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! avutil/util/pcm */ "./src/avutil/util/pcm.ts");
+/* harmony import */ var avutil_util_mem__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! avutil/util/mem */ "./src/avutil/util/mem.ts");
+/* harmony import */ var cheap_std_memory__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! cheap/std/memory */ "./src/cheap/std/memory.ts");
+/* harmony import */ var avutil_util_intread__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! avutil/util/intread */ "./src/avutil/util/intread.ts");
+/* harmony import */ var avutil_util_channel__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! avutil/util/channel */ "./src/avutil/util/channel.ts");
+const cheap__fileName__0 = "src\\avformat\\formats\\riff\\iriff.ts";
+
+
 
 
 
@@ -264,46 +273,53 @@ var cheap__fileName__0 = "src\\avformat\\formats\\riff\\iriff.ts";
 
 
 function getWavCodecId(tag, bitsPerCodedSample) {
-    let codecId = _riff__WEBPACK_IMPORTED_MODULE_4__.WavTag2CodecId[tag];
+    let codecId = _riff__WEBPACK_IMPORTED_MODULE_5__.WavTag2CodecId[tag];
     if (!codecId) {
         return 0 /* AVCodecID.AV_CODEC_ID_NONE */;
     }
     if (codecId === 65541 /* AVCodecID.AV_CODEC_ID_PCM_U8 */) {
-        codecId = (0,avutil_util_pcm__WEBPACK_IMPORTED_MODULE_5__.getPcmCodecId)(bitsPerCodedSample, false, false, ~1);
+        codecId = (0,avutil_util_pcm__WEBPACK_IMPORTED_MODULE_6__.getPcmCodecId)(bitsPerCodedSample, false, false, ~1);
     }
     else if (codecId === 65557 /* AVCodecID.AV_CODEC_ID_PCM_F32LE */) {
-        codecId = (0,avutil_util_pcm__WEBPACK_IMPORTED_MODULE_5__.getPcmCodecId)(bitsPerCodedSample, true, false, 0);
+        codecId = (0,avutil_util_pcm__WEBPACK_IMPORTED_MODULE_6__.getPcmCodecId)(bitsPerCodedSample, true, false, 0);
     }
     if (codecId === 69633 /* AVCodecID.AV_CODEC_ID_ADPCM_IMA_WAV */ && bitsPerCodedSample === 8) {
         codecId = 69676 /* AVCodecID.AV_CODEC_ID_ADPCM_ZORK */;
     }
     return codecId;
 }
+function getGuidCodecId(guid) {
+    let codecId = _riff__WEBPACK_IMPORTED_MODULE_5__.codecBmpGuid[guid.toLocaleUpperCase()];
+    if (!codecId) {
+        return 0 /* AVCodecID.AV_CODEC_ID_NONE */;
+    }
+    return codecId;
+}
 async function readFormatTag(ioReader, codecpar, size) {
     if (size < 14) {
-        common_util_logger__WEBPACK_IMPORTED_MODULE_2__.error('wav format size < 14', cheap__fileName__0, 36);
-        return avutil_error__WEBPACK_IMPORTED_MODULE_3__.DATA_INVALID;
+        common_util_logger__WEBPACK_IMPORTED_MODULE_3__.error('wav format size < 14', cheap__fileName__0, 49);
+        return avutil_error__WEBPACK_IMPORTED_MODULE_4__.DATA_INVALID;
     }
-    cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[15](codecpar, 1 /* AVMediaType.AVMEDIA_TYPE_AUDIO */);
+    cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_2__.CTypeEnumWrite[15](codecpar, 1 /* AVMediaType.AVMEDIA_TYPE_AUDIO */);
     const audioFormat = await ioReader.readUint16();
     let channels = await ioReader.readUint16();
     const sampleRate = await ioReader.readUint32();
     let bitrate = await ioReader.readUint32() * 8;
     const blockAlgin = await ioReader.readUint16();
-    cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[15](codecpar + 136, sampleRate);
-    cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[15](codecpar + 140, blockAlgin);
+    cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_2__.CTypeEnumWrite[15](codecpar + 136, sampleRate);
+    cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_2__.CTypeEnumWrite[15](codecpar + 140, blockAlgin);
     if (size === 14) {
-        cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[15](codecpar + 40, 8);
+        cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_2__.CTypeEnumWrite[15](codecpar + 40, 8);
     }
     else {
-        cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[15](codecpar + 40, await ioReader.readUint16());
+        cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_2__.CTypeEnumWrite[15](codecpar + 40, await ioReader.readUint16());
     }
     if (audioFormat === 0xfffe) {
-        cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[8](codecpar + 8, 0);
+        cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_2__.CTypeEnumWrite[8](codecpar + 8, 0);
     }
     else {
-        cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[8](codecpar + 8, audioFormat);
-        cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[15](codecpar + 4, getWavCodecId(audioFormat, cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[15](codecpar + 40)));
+        cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_2__.CTypeEnumWrite[8](codecpar + 8, audioFormat);
+        cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_2__.CTypeEnumWrite[15](codecpar + 4, getWavCodecId(audioFormat, cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumRead[15](codecpar + 40)));
     }
     if (size >= 18 && audioFormat !== 0x0165) {
         let cbSize = await ioReader.readUint16();
@@ -316,9 +332,9 @@ async function readFormatTag(ioReader, codecpar, size) {
             size -= 22;
         }
         if (cbSize > 0) {
-            cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[20](codecpar + 12, (0,avutil_util_mem__WEBPACK_IMPORTED_MODULE_6__.avMalloc)(cbSize));
-            cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[15](codecpar + 16, cbSize);
-            await ioReader.readBuffer(cbSize, (0,cheap_std_memory__WEBPACK_IMPORTED_MODULE_7__.mapSafeUint8Array)(cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[20](codecpar + 12), cbSize));
+            cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_2__.CTypeEnumWrite[20](codecpar + 12, (0,avutil_util_mem__WEBPACK_IMPORTED_MODULE_7__.avMalloc)(cbSize));
+            cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_2__.CTypeEnumWrite[15](codecpar + 16, cbSize);
+            await ioReader.readBuffer(cbSize, (0,cheap_std_memory__WEBPACK_IMPORTED_MODULE_8__.mapSafeUint8Array)(cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumRead[20](codecpar + 12), cbSize));
             size -= cbSize;
         }
         if (size > 0) {
@@ -327,35 +343,169 @@ async function readFormatTag(ioReader, codecpar, size) {
     }
     else if (audioFormat === 0x0165 && size >= 32) {
         size -= 4;
-        cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[20](codecpar + 12, (0,avutil_util_mem__WEBPACK_IMPORTED_MODULE_6__.avMalloc)(size));
-        cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[15](codecpar + 16, size);
-        await ioReader.readBuffer(size, (0,cheap_std_memory__WEBPACK_IMPORTED_MODULE_7__.mapSafeUint8Array)(cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[20](codecpar + 12), size));
-        const streams = avutil_util_intread__WEBPACK_IMPORTED_MODULE_8__.rl16(cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[20](codecpar + 12) + 4);
-        cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[15](codecpar + 136, avutil_util_intread__WEBPACK_IMPORTED_MODULE_8__.rl32(cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[20](codecpar + 12) + 12));
+        cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_2__.CTypeEnumWrite[20](codecpar + 12, (0,avutil_util_mem__WEBPACK_IMPORTED_MODULE_7__.avMalloc)(size));
+        cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_2__.CTypeEnumWrite[15](codecpar + 16, size);
+        await ioReader.readBuffer(size, (0,cheap_std_memory__WEBPACK_IMPORTED_MODULE_8__.mapSafeUint8Array)(cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumRead[20](codecpar + 12), size));
+        const streams = avutil_util_intread__WEBPACK_IMPORTED_MODULE_9__.rl16(cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumRead[20](codecpar + 12) + 4);
+        cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_2__.CTypeEnumWrite[15](codecpar + 136, avutil_util_intread__WEBPACK_IMPORTED_MODULE_9__.rl32(cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumRead[20](codecpar + 12) + 12));
         channels = 0;
         bitrate = 0;
         if (size < 8 + streams * 20) {
-            return avutil_error__WEBPACK_IMPORTED_MODULE_3__.DATA_INVALID;
+            return avutil_error__WEBPACK_IMPORTED_MODULE_4__.DATA_INVALID;
         }
         for (let i = 0; i < streams; i++) {
-            channels += cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[2](cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[20](codecpar + 12) + (8 + i * 20 + 17));
+            channels += cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumRead[2](cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumRead[20](codecpar + 12) + (8 + i * 20 + 17));
         }
     }
-    cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[17](codecpar + 32, BigInt(bitrate));
-    if (cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[15](codecpar + 136) < 0) {
-        common_util_logger__WEBPACK_IMPORTED_MODULE_2__.error(`Invalid sample rate: ${cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[15](codecpar + 136)}`, cheap__fileName__0, 116);
-        return avutil_error__WEBPACK_IMPORTED_MODULE_3__.DATA_INVALID;
+    cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_2__.CTypeEnumWrite[17](codecpar + 32, BigInt(bitrate));
+    if (cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumRead[15](codecpar + 136) < 0) {
+        common_util_logger__WEBPACK_IMPORTED_MODULE_3__.error(`Invalid sample rate: ${cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumRead[15](codecpar + 136)}`, cheap__fileName__0, 129);
+        return avutil_error__WEBPACK_IMPORTED_MODULE_4__.DATA_INVALID;
     }
-    if (cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[15](codecpar + 4) === 86065 /* AVCodecID.AV_CODEC_ID_AAC_LATM */) {
+    if (cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumRead[15](codecpar + 4) === 86065 /* AVCodecID.AV_CODEC_ID_AAC_LATM */) {
         channels = 0;
-        cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[15](codecpar + 136, 0);
+        cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_2__.CTypeEnumWrite[15](codecpar + 136, 0);
     }
-    if (cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[15](codecpar + 4) == 69643 /* AVCodecID.AV_CODEC_ID_ADPCM_G726 */ && cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[15](codecpar + 136)) {
-        cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[15](codecpar + 40, Number(BigInt.asIntN(32, cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[17](codecpar + 32))) / cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[15](codecpar + 136));
+    if (cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumRead[15](codecpar + 4) == 69643 /* AVCodecID.AV_CODEC_ID_ADPCM_G726 */ && cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumRead[15](codecpar + 136)) {
+        cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_2__.CTypeEnumWrite[15](codecpar + 40, Number(BigInt.asIntN(32, cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumRead[17](codecpar + 32))) / cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumRead[15](codecpar + 136));
     }
-    if (channels != cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[15](codecpar + 116)) {
-        cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[15](codecpar + 112, 0 /* AVChannelOrder.AV_CHANNEL_ORDER_UNSPEC */);
-        cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[15](codecpar + 116, channels);
+    if (channels != cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumRead[15](codecpar + 116)) {
+        cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_2__.CTypeEnumWrite[15](codecpar + 112, 0 /* AVChannelOrder.AV_CHANNEL_ORDER_UNSPEC */);
+        cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_2__.CTypeEnumWrite[15](codecpar + 116, channels);
+    }
+    return 0;
+}
+async function readInfo(ioReader, size, metadata) {
+    const end = ioReader.getPos() + size;
+    while (ioReader.getPos() < end) {
+        const key = await ioReader.readString(4);
+        const size = await ioReader.readUint32();
+        const value = await ioReader.readString(size);
+        metadata[key] = value;
+        if (size % 2) {
+            await ioReader.skip(1);
+        }
+    }
+}
+async function readBmpHeader(ioReader, stream) {
+    const esize = await ioReader.readUint32();
+    stream.codecpar.width = await ioReader.readUint32();
+    stream.codecpar.height = await ioReader.readUint32();
+    await ioReader.skip(2);
+    stream.codecpar.bitsPerCodedSample = await ioReader.readUint16();
+    stream.codecpar.codecTag = await ioReader.readUint32();
+    await ioReader.skip(20);
+    return esize;
+}
+async function readWaveformatex(ioReader, stream) {
+    const bsp = await ioReader.readUint16();
+    if (bsp) {
+        stream.codecpar.bitsPerCodedSample = bsp;
+    }
+    const mask = await ioReader.readUint32();
+    (0,avutil_util_channel__WEBPACK_IMPORTED_MODULE_10__.setChannelLayoutFromMask)(stream.codecpar[cheap_symbol__WEBPACK_IMPORTED_MODULE_0__.symbolStructAddress] + 112, BigInt(mask));
+    const subFormat = (await ioReader.readHex(16)).toLocaleUpperCase();
+    if (subFormat.slice(4) === _riff__WEBPACK_IMPORTED_MODULE_5__.AMBISONIC_BASE_GUID
+        || subFormat.slice(4) === _riff__WEBPACK_IMPORTED_MODULE_5__.BROKEN_BASE_GUID
+        || subFormat.slice(4) === _riff__WEBPACK_IMPORTED_MODULE_5__.MEDIASUBTYPE_BASE_GUID) {
+        stream.codecpar.codecTag = await ioReader.readUint32();
+        stream.codecpar.codecId = getWavCodecId(stream.codecpar.codecTag, stream.codecpar.bitsPerCodedSample);
+    }
+    else {
+        stream.codecpar.codecId = getGuidCodecId(subFormat);
+        if (!stream.codecpar.codecId) {
+            common_util_logger__WEBPACK_IMPORTED_MODULE_3__.warn(`unknown subformat: ${subFormat}`, cheap__fileName__0, 190);
+        }
+    }
+}
+async function readWavHeader(ioReader, stream, size) {
+    if (size < 14) {
+        common_util_logger__WEBPACK_IMPORTED_MODULE_3__.error('wav header size < 14', cheap__fileName__0, 197);
+        return avutil_error__WEBPACK_IMPORTED_MODULE_4__.DATA_INVALID;
+    }
+    (0,avutil_util_channel__WEBPACK_IMPORTED_MODULE_10__.unInitChannelLayout)(stream.codecpar[cheap_symbol__WEBPACK_IMPORTED_MODULE_0__.symbolStructAddress] + 112);
+    let id;
+    let channels;
+    let bitrate;
+    id = await ioReader.readUint16();
+    if (id !== 0x0165 || ioReader.isBigEndian()) {
+        channels = await ioReader.readUint16();
+        stream.codecpar.sampleRate = await ioReader.readUint32();
+        bitrate = (await ioReader.readUint32()) * 8;
+        stream.codecpar.blockAlign = await ioReader.readUint16();
+    }
+    if (size === 14) {
+        stream.codecpar.bitsPerCodedSample = 8;
+    }
+    else {
+        stream.codecpar.bitsPerCodedSample = await ioReader.readUint16();
+    }
+    if (id === 0xFFFE) {
+        stream.codecpar.codecTag = 0;
+    }
+    else {
+        stream.codecpar.codecTag = id;
+        stream.codecpar.codecId = getWavCodecId(id, stream.codecpar.bitsPerCodedSample);
+    }
+    if (size >= 18 && id != 0x0165) {
+        let cbSize = await ioReader.readUint16();
+        if (ioReader.isBigEndian()) {
+            common_util_logger__WEBPACK_IMPORTED_MODULE_3__.error('WAVEFORMATEX support for RIFX files', cheap__fileName__0, 229);
+            return avutil_error__WEBPACK_IMPORTED_MODULE_4__.DATA_INVALID;
+        }
+        size -= 18;
+        cbSize = Math.min(cbSize, size);
+        if (cbSize >= 22 && id == 0xfffe) {
+            await readWaveformatex(ioReader, stream);
+            cbSize -= 22;
+            size -= 22;
+        }
+        if (cbSize > 0) {
+            if (stream.codecpar.extradata) {
+                (0,avutil_util_mem__WEBPACK_IMPORTED_MODULE_7__.avFree)(stream.codecpar.extradata);
+            }
+            stream.codecpar.extradataSize = cbSize;
+            stream.codecpar.extradata = (0,avutil_util_mem__WEBPACK_IMPORTED_MODULE_7__.avMalloc)(cbSize);
+            await ioReader.readBuffer(cbSize, (0,cheap_std_memory__WEBPACK_IMPORTED_MODULE_8__.mapSafeUint8Array)(stream.codecpar.extradata, cbSize));
+            size -= cbSize;
+        }
+        if (size > 0) {
+            await ioReader.skip(size);
+        }
+    }
+    else if (id == 0x0165 && size >= 32) {
+        size -= 4;
+        if (stream.codecpar.extradata) {
+            (0,avutil_util_mem__WEBPACK_IMPORTED_MODULE_7__.avFree)(stream.codecpar.extradata);
+        }
+        stream.codecpar.extradataSize = size;
+        stream.codecpar.extradata = (0,avutil_util_mem__WEBPACK_IMPORTED_MODULE_7__.avMalloc)(size);
+        await ioReader.readBuffer(size, (0,cheap_std_memory__WEBPACK_IMPORTED_MODULE_8__.mapSafeUint8Array)(stream.codecpar.extradata, size));
+        const nbStreams = avutil_util_intread__WEBPACK_IMPORTED_MODULE_9__.rl16(stream.codecpar.extradata + 4);
+        stream.codecpar.sampleRate = avutil_util_intread__WEBPACK_IMPORTED_MODULE_9__.rl32(stream.codecpar.extradata + 12);
+        if (size < 8 + nbStreams * 20) {
+            return avutil_error__WEBPACK_IMPORTED_MODULE_4__.DATA_INVALID;
+        }
+        for (let i = 0; i < nbStreams; i++) {
+            channels += cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumRead[2](stream.codecpar.extradata + (8 + i * 20 + 17));
+        }
+    }
+    stream.codecpar.bitrate = BigInt(bitrate >> 0);
+    if (stream.codecpar.sampleRate < 0) {
+        common_util_logger__WEBPACK_IMPORTED_MODULE_3__.error(`Invalid sample rate ${stream.codecpar.sampleRate}`, cheap__fileName__0, 272);
+        return avutil_error__WEBPACK_IMPORTED_MODULE_4__.DATA_INVALID;
+    }
+    if (stream.codecpar.codecId === 86065 /* AVCodecID.AV_CODEC_ID_AAC_LATM */) {
+        channels = 0;
+        stream.codecpar.sampleRate = 0;
+    }
+    if (stream.codecpar.codecId === 69643 /* AVCodecID.AV_CODEC_ID_ADPCM_G726 */ && stream.codecpar.sampleRate) {
+        stream.codecpar.bitsPerCodedSample = Number(stream.codecpar.bitrate) / stream.codecpar.sampleRate;
+    }
+    if (channels !== stream.codecpar.chLayout.nbChannels) {
+        (0,avutil_util_channel__WEBPACK_IMPORTED_MODULE_10__.unInitChannelLayout)(stream.codecpar[cheap_symbol__WEBPACK_IMPORTED_MODULE_0__.symbolStructAddress] + 112);
+        stream.codecpar.chLayout.order = 0 /* AVChannelOrder.AV_CHANNEL_ORDER_UNSPEC */;
+        stream.codecpar.chLayout.nbChannels = channels;
     }
     return 0;
 }
@@ -370,9 +520,14 @@ async function readFormatTag(ioReader, codecpar, size) {
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   AMBISONIC_BASE_GUID: () => (/* binding */ AMBISONIC_BASE_GUID),
+/* harmony export */   BROKEN_BASE_GUID: () => (/* binding */ BROKEN_BASE_GUID),
+/* harmony export */   MEDIASUBTYPE_BASE_GUID: () => (/* binding */ MEDIASUBTYPE_BASE_GUID),
 /* harmony export */   WavTag2CodecId: () => (/* binding */ WavTag2CodecId),
+/* harmony export */   codecBmpGuid: () => (/* binding */ codecBmpGuid),
 /* harmony export */   codecBmpTags: () => (/* binding */ codecBmpTags)
 /* harmony export */ });
+/* unused harmony export RiffInfo */
 /* harmony import */ var _function_mktagle__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../../function/mktagle */ "./src/avformat/function/mktagle.ts");
 
 const WavTag2CodecId = {
@@ -394,6 +549,10 @@ const WavTag2CodecId = {
     0x0045: 69643 /* AVCodecID.AV_CODEC_ID_ADPCM_G726 */,
     0x0014: 69643 /* AVCodecID.AV_CODEC_ID_ADPCM_G726 */,
     0x0040: 69643 /* AVCodecID.AV_CODEC_ID_ADPCM_G726 */,
+    0x0050: 86016 /* AVCodecID.AV_CODEC_ID_MP2 */,
+    0x0055: 86017 /* AVCodecID.AV_CODEC_ID_MP3 */,
+    0x0057: 73728 /* AVCodecID.AV_CODEC_ID_AMR_NB */,
+    0x0058: 73729 /* AVCodecID.AV_CODEC_ID_AMR_WB */,
     0x0061: 69635 /* AVCodecID.AV_CODEC_ID_ADPCM_IMA_DK4 */,
     0x0062: 69634 /* AVCodecID.AV_CODEC_ID_ADPCM_IMA_DK3 */,
     0x0064: 69643 /* AVCodecID.AV_CODEC_ID_ADPCM_G726 */,
@@ -402,12 +561,63 @@ const WavTag2CodecId = {
     0x0083: 86069 /* AVCodecID.AV_CODEC_ID_G729 */,
     0x00ff: 86018 /* AVCodecID.AV_CODEC_ID_AAC */,
     0x0111: 86068 /* AVCodecID.AV_CODEC_ID_G723_1 */,
+    0x0130: 86057 /* AVCodecID.AV_CODEC_ID_SIPR */,
+    0x0135: 86106 /* AVCodecID.AV_CODEC_ID_ACELP_KELVIN */,
+    0x0160: 86023 /* AVCodecID.AV_CODEC_ID_WMAV1 */,
+    0x0161: 86024 /* AVCodecID.AV_CODEC_ID_WMAV2 */,
+    0x0162: 86053 /* AVCodecID.AV_CODEC_ID_WMAPRO */,
+    0x0163: 86054 /* AVCodecID.AV_CODEC_ID_WMALOSSLESS */,
+    0x0165: 86095 /* AVCodecID.AV_CODEC_ID_XMA1 */,
+    0x0166: 86096 /* AVCodecID.AV_CODEC_ID_XMA2 */,
+    0x0180: 86116 /* AVCodecID.AV_CODEC_ID_FTR */,
+    0x0200: 69644 /* AVCodecID.AV_CODEC_ID_ADPCM_CT */,
+    0x0215: 86022 /* AVCodecID.AV_CODEC_ID_DVAUDIO */,
+    0x0216: 86022 /* AVCodecID.AV_CODEC_ID_DVAUDIO */,
+    0x0270: 86047 /* AVCodecID.AV_CODEC_ID_ATRAC3 */,
+    0x028E: 86111 /* AVCodecID.AV_CODEC_ID_MSNSIREN */,
+    0x028F: 69660 /* AVCodecID.AV_CODEC_ID_ADPCM_G722 */,
+    0x0350: 86114 /* AVCodecID.AV_CODEC_ID_MISC4 */,
+    0x0401: 86043 /* AVCodecID.AV_CODEC_ID_IMC */,
+    0x0402: 86074 /* AVCodecID.AV_CODEC_ID_IAC */,
+    0x0500: 86081 /* AVCodecID.AV_CODEC_ID_ON2AVC */,
+    0x0501: 86081 /* AVCodecID.AV_CODEC_ID_ON2AVC */,
+    0x1500: 86046 /* AVCodecID.AV_CODEC_ID_GSM_MS */,
+    0x1501: 86037 /* AVCodecID.AV_CODEC_ID_TRUESPEECH */,
     // ADTS AAC
     0x1600: 86018 /* AVCodecID.AV_CODEC_ID_AAC */,
     0x1602: 86065 /* AVCodecID.AV_CODEC_ID_AAC_LATM */,
-    0x2000: 86019 /* AVCodecID.AV_CODEC_ID_AC3 */
+    0x2000: 86019 /* AVCodecID.AV_CODEC_ID_AC3 */,
+    0x2001: 86020 /* AVCodecID.AV_CODEC_ID_DTS */,
+    0x2048: 86085 /* AVCodecID.AV_CODEC_ID_SONIC */,
+    0x2222: 86069 /* AVCodecID.AV_CODEC_ID_G729 */,
+    0x6c75: 65542 /* AVCodecID.AV_CODEC_ID_PCM_MULAW */,
+    0x706d: 86018 /* AVCodecID.AV_CODEC_ID_AAC */,
+    0x4143: 86018 /* AVCodecID.AV_CODEC_ID_AAC */,
+    0x4180: 86116 /* AVCodecID.AV_CODEC_ID_FTR */,
+    0x594a: 81922 /* AVCodecID.AV_CODEC_ID_XAN_DPCM */,
+    0x729A: 86069 /* AVCodecID.AV_CODEC_ID_G729 */,
+    0x8180: 86116 /* AVCodecID.AV_CODEC_ID_FTR */,
+    0xA100: 86068 /* AVCodecID.AV_CODEC_ID_G723_1 */,
+    0xA106: 86018 /* AVCodecID.AV_CODEC_ID_AAC */,
+    0xA109: 86051 /* AVCodecID.AV_CODEC_ID_SPEEX */,
+    0xF1AC: 86028 /* AVCodecID.AV_CODEC_ID_FLAC */,
+    0xFFFE: 86112 /* AVCodecID.AV_CODEC_ID_DFPWM */,
+    0x5346: 69645 /* AVCodecID.AV_CODEC_ID_ADPCM_SWF */,
+    0x566f: 86021 /* AVCodecID.AV_CODEC_ID_VORBIS */
 };
 const codecBmpTags = {
+    [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('H261')]: 3 /* AVCodecID.AV_CODEC_ID_H261 */,
+    [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('H263')]: 4 /* AVCodecID.AV_CODEC_ID_H263 */,
+    [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('X263')]: 4 /* AVCodecID.AV_CODEC_ID_H263 */,
+    [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('T263')]: 4 /* AVCodecID.AV_CODEC_ID_H263 */,
+    [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('L263')]: 4 /* AVCodecID.AV_CODEC_ID_H263 */,
+    [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('VX1K')]: 4 /* AVCodecID.AV_CODEC_ID_H263 */,
+    [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('ZyGo')]: 4 /* AVCodecID.AV_CODEC_ID_H263 */,
+    [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('M263')]: 4 /* AVCodecID.AV_CODEC_ID_H263 */,
+    [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('lsvm')]: 4 /* AVCodecID.AV_CODEC_ID_H263 */,
+    [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('I263')]: 20 /* AVCodecID.AV_CODEC_ID_H263I */,
+    [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('U263')]: 4 /* AVCodecID.AV_CODEC_ID_H263 */,
+    [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('VSM4')]: 4 /* AVCodecID.AV_CODEC_ID_H263 */,
     [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('H264')]: 27 /* AVCodecID.AV_CODEC_ID_H264 */,
     [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('h264')]: 27 /* AVCodecID.AV_CODEC_ID_H264 */,
     [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('X264')]: 27 /* AVCodecID.AV_CODEC_ID_H264 */,
@@ -487,8 +697,82 @@ const codecBmpTags = {
     [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('AP41')]: 16 /* AVCodecID.AV_CODEC_ID_MSMPEG4V3 */,
     [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('COL1')]: 16 /* AVCodecID.AV_CODEC_ID_MSMPEG4V3 */,
     [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('COL0')]: 16 /* AVCodecID.AV_CODEC_ID_MSMPEG4V3 */,
+    [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('WMV1')]: 17 /* AVCodecID.AV_CODEC_ID_WMV1 */,
+    [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('WMV2')]: 18 /* AVCodecID.AV_CODEC_ID_WMV2 */,
+    [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('GXVE')]: 18 /* AVCodecID.AV_CODEC_ID_WMV2 */,
+    [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('dvsd')]: 24 /* AVCodecID.AV_CODEC_ID_DVVIDEO */,
+    [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('dvhd')]: 24 /* AVCodecID.AV_CODEC_ID_DVVIDEO */,
+    [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('dvh1')]: 24 /* AVCodecID.AV_CODEC_ID_DVVIDEO */,
+    [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('dvsl')]: 24 /* AVCodecID.AV_CODEC_ID_DVVIDEO */,
+    [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('dv25')]: 24 /* AVCodecID.AV_CODEC_ID_DVVIDEO */,
+    [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('dv50')]: 24 /* AVCodecID.AV_CODEC_ID_DVVIDEO */,
+    [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('cdvc')]: 24 /* AVCodecID.AV_CODEC_ID_DVVIDEO */,
+    [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('CDVH')]: 24 /* AVCodecID.AV_CODEC_ID_DVVIDEO */,
+    [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('CDV5')]: 24 /* AVCodecID.AV_CODEC_ID_DVVIDEO */,
+    [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('dvc ')]: 24 /* AVCodecID.AV_CODEC_ID_DVVIDEO */,
+    [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('dvcs')]: 24 /* AVCodecID.AV_CODEC_ID_DVVIDEO */,
+    [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('dvh1')]: 24 /* AVCodecID.AV_CODEC_ID_DVVIDEO */,
+    [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('dvis')]: 24 /* AVCodecID.AV_CODEC_ID_DVVIDEO */,
+    [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('pdvc')]: 24 /* AVCodecID.AV_CODEC_ID_DVVIDEO */,
+    [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('SL25')]: 24 /* AVCodecID.AV_CODEC_ID_DVVIDEO */,
+    [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('SLDV')]: 24 /* AVCodecID.AV_CODEC_ID_DVVIDEO */,
+    [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('AVd1')]: 24 /* AVCodecID.AV_CODEC_ID_DVVIDEO */,
+    [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('mpg1')]: 2 /* AVCodecID.AV_CODEC_ID_MPEG2VIDEO */,
+    [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('mpg2')]: 2 /* AVCodecID.AV_CODEC_ID_MPEG2VIDEO */,
+    [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('MPEG')]: 2 /* AVCodecID.AV_CODEC_ID_MPEG2VIDEO */,
+    [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('PIM1')]: 2 /* AVCodecID.AV_CODEC_ID_MPEG2VIDEO */,
+    [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('PIM2')]: 2 /* AVCodecID.AV_CODEC_ID_MPEG2VIDEO */,
+    [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('VCR2')]: 2 /* AVCodecID.AV_CODEC_ID_MPEG2VIDEO */,
+    [0x10000001]: 2 /* AVCodecID.AV_CODEC_ID_MPEG2VIDEO */,
+    [0x10000002]: 2 /* AVCodecID.AV_CODEC_ID_MPEG2VIDEO */,
+    [0x10000004]: 2 /* AVCodecID.AV_CODEC_ID_MPEG2VIDEO */,
+    [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('DVR ')]: 2 /* AVCodecID.AV_CODEC_ID_MPEG2VIDEO */,
+    [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('MMES')]: 2 /* AVCodecID.AV_CODEC_ID_MPEG2VIDEO */,
+    [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('LMP2')]: 2 /* AVCodecID.AV_CODEC_ID_MPEG2VIDEO */,
+    [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('slif')]: 2 /* AVCodecID.AV_CODEC_ID_MPEG2VIDEO */,
+    [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('EM2V')]: 2 /* AVCodecID.AV_CODEC_ID_MPEG2VIDEO */,
+    [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('M701')]: 2 /* AVCodecID.AV_CODEC_ID_MPEG2VIDEO */,
+    [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('M702')]: 2 /* AVCodecID.AV_CODEC_ID_MPEG2VIDEO */,
+    [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('M703')]: 2 /* AVCodecID.AV_CODEC_ID_MPEG2VIDEO */,
+    [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('M704')]: 2 /* AVCodecID.AV_CODEC_ID_MPEG2VIDEO */,
+    [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('M705')]: 2 /* AVCodecID.AV_CODEC_ID_MPEG2VIDEO */,
+    [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('mpgv')]: 2 /* AVCodecID.AV_CODEC_ID_MPEG2VIDEO */,
+    [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('BW10')]: 2 /* AVCodecID.AV_CODEC_ID_MPEG2VIDEO */,
+    [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('XMPG')]: 2 /* AVCodecID.AV_CODEC_ID_MPEG2VIDEO */,
+    [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('MJPG')]: 7 /* AVCodecID.AV_CODEC_ID_MJPEG */,
+    [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('RV40')]: 69 /* AVCodecID.AV_CODEC_ID_RV40 */,
+    [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('AV01')]: 225 /* AVCodecID.AV_CODEC_ID_AV1 */,
     [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('VP80')]: 139 /* AVCodecID.AV_CODEC_ID_VP8 */,
-    [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('VP90')]: 167 /* AVCodecID.AV_CODEC_ID_VP9 */
+    [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('VP90')]: 167 /* AVCodecID.AV_CODEC_ID_VP9 */,
+    [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('HEVC')]: 173 /* AVCodecID.AV_CODEC_ID_HEVC */,
+    [(0,_function_mktagle__WEBPACK_IMPORTED_MODULE_0__["default"])('H265')]: 173 /* AVCodecID.AV_CODEC_ID_HEVC */
+};
+const MEDIASUBTYPE_BASE_GUID = '00001000800000AA00389B71';
+const AMBISONIC_BASE_GUID = '2107D3118644C8C1CA000000';
+const BROKEN_BASE_GUID = '0000000000001000800000AA';
+const codecBmpGuid = {
+    '2C806DE046DBCF11B4D100805F6CBBEA': 86019 /* AVCodecID.AV_CODEC_ID_AC3 */,
+    'BFAA23E958CB7144A119FFFA01E4CE62': 86055 /* AVCodecID.AV_CODEC_ID_ATRAC3P */,
+    'D242E147BA368D4D88FC61654F8C836C': 86104 /* AVCodecID.AV_CODEC_ID_ATRAC9 */,
+    'AF87FBA7022DFB42A4D405CD93843BDD': 86056 /* AVCodecID.AV_CODEC_ID_EAC3 */,
+    '2B806DE046DBCF11B4D100805F6CBBEA': 86016 /* AVCodecID.AV_CODEC_ID_MP2 */,
+    '82EC1F6ACADB1945BDE756D3B3EF981D': 69673 /* AVCodecID.AV_CODEC_ID_ADPCM_AGM */,
+    '3AC1FA38811D4361A40DCE53CA607CD1': 86112 /* AVCodecID.AV_CODEC_ID_DFPWM */
+};
+const RiffInfo = {
+    'IART': "artist" /* AVStreamMetadataKey.ARTIST */,
+    'ICMT': "comment" /* AVStreamMetadataKey.COMMENT */,
+    'ICOP': "copyright" /* AVStreamMetadataKey.COPYRIGHT */,
+    'ICRD': "date" /* AVStreamMetadataKey.DATE */,
+    'IGNR': "genre" /* AVStreamMetadataKey.GENRE */,
+    'ILNG': "language" /* AVStreamMetadataKey.LANGUAGE */,
+    'INAM': "language" /* AVStreamMetadataKey.LANGUAGE */,
+    'IPRD': "album" /* AVStreamMetadataKey.ALBUM */,
+    'IPRT': "track" /* AVStreamMetadataKey.TRACK */,
+    'ITRK': "track" /* AVStreamMetadataKey.TRACK */,
+    'ISFT': "encoder" /* AVStreamMetadataKey.ENCODER */,
+    'ISMP': "timecode" /* AVStreamMetadataKey.TIME_CODE */,
+    'ITCH': "vendor" /* AVStreamMetadataKey.VENDOR */
 };
 
 
@@ -504,7 +788,7 @@ const codecBmpTags = {
 /* harmony export */   "default": () => (/* binding */ mktagle)
 /* harmony export */ });
 /* harmony import */ var common_util_logger__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! common/util/logger */ "./src/common/util/logger.ts");
-var cheap__fileName__0 = "src\\avformat\\function\\mktagle.ts";
+const cheap__fileName__0 = "src\\avformat\\function\\mktagle.ts";
 /*
  * libmedia string tag to uint32 in litten end
  *

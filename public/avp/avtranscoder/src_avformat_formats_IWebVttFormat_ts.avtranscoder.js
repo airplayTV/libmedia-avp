@@ -64,7 +64,11 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var common_util_array__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! common/util/array */ "./src/common/util/array.ts");
 /* harmony import */ var common_util_text__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! common/util/text */ "./src/common/util/text.ts");
 /* harmony import */ var common_util_time__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! common/util/time */ "./src/common/util/time.ts");
-var cheap__fileName__0 = "src\\avformat\\formats\\IWebVttFormat.ts";
+/* harmony import */ var avutil_constant__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! avutil/constant */ "./src/avutil/constant.ts");
+/* harmony import */ var avutil_util_rational__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(/*! avutil/util/rational */ "./src/avutil/util/rational.ts");
+const cheap__fileName__0 = "src\\avformat\\formats\\IWebVttFormat.ts";
+
+
 
 
 
@@ -80,23 +84,88 @@ class IWebVttFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_4__["default"] {
     type = 18 /* AVFormat.WEBVTT */;
     queue;
     index;
+    baseTs;
     constructor() {
         super();
     }
     init(formatContext) {
         this.queue = [];
+        this.baseTs = BigInt(0);
     }
     async readChunk(formatContext) {
         let chunk = '';
         const pos = formatContext.ioReader.getPos();
         while (true) {
             const line = await formatContext.ioReader.readLine();
-            if (line === '') {
+            if (line === '' || line === 'WEBVTT') {
                 break;
             }
             chunk += line + '\n';
         }
         return { chunk: chunk.trim(), pos };
+    }
+    async readCue(formatContext, styles) {
+        while (true) {
+            const { chunk, pos } = await this.readChunk(formatContext);
+            if (chunk === '' || /^NOTE/.test(chunk) || chunk === 'WEBVTT') {
+                continue;
+            }
+            if (/^STYLE/.test(chunk)) {
+                styles.push({
+                    style: chunk.replace(/STYLE[\s|\n]?/, ''),
+                    pos
+                });
+                continue;
+            }
+            if (/^X-TIMESTAMP-MAP/.test(chunk)) {
+                const value = chunk.split('=')[1];
+                const items = value.split(',');
+                let local = BigInt(0);
+                let ts = BigInt(0);
+                items.forEach((t) => {
+                    const l = t.split(':');
+                    if (l[0] === 'LOCAL') {
+                        l.shift();
+                        local = (0,common_util_time__WEBPACK_IMPORTED_MODULE_10__.hhColonDDColonSSDotMill2Int64)(l.join(':').trim());
+                    }
+                    else if (l[0] === 'MPEGTS') {
+                        ts = BigInt(+l[1]) * BigInt(1000) / BigInt(90000);
+                    }
+                });
+                this.baseTs = ts - local;
+                continue;
+            }
+            const lines = chunk.split('\n');
+            let identifier;
+            let options;
+            // identifier
+            if (lines[0].indexOf('-->') === -1) {
+                identifier = lines.shift().trim();
+            }
+            let times = lines.shift().split('-->');
+            const startTs = (0,common_util_time__WEBPACK_IMPORTED_MODULE_10__.hhColonDDColonSSDotMill2Int64)(times.shift()) + this.baseTs;
+            times = times.shift().trim().split(' ');
+            const endTs = (0,common_util_time__WEBPACK_IMPORTED_MODULE_10__.hhColonDDColonSSDotMill2Int64)(times.shift()) + this.baseTs;
+            if (endTs <= startTs) {
+                continue;
+            }
+            times = times.filter((t) => t !== '');
+            if (times.length) {
+                options = times.join(' ');
+            }
+            const context = lines.join('\n').trim();
+            if (!context) {
+                continue;
+            }
+            return {
+                identifier,
+                options,
+                context,
+                startTs,
+                endTs,
+                pos
+            };
+        }
     }
     async readHeader(formatContext) {
         const bom = await formatContext.ioReader.peekBuffer(3);
@@ -105,7 +174,7 @@ class IWebVttFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_4__["default"] {
         }
         const signature = await formatContext.ioReader.peekString(6);
         if (signature !== 'WEBVTT') {
-            common_util_logger__WEBPACK_IMPORTED_MODULE_2__.error('the file format is not vtt', cheap__fileName__0, 89);
+            common_util_logger__WEBPACK_IMPORTED_MODULE_2__.error('the file format is not vtt', cheap__fileName__0, 169);
             return avutil_error__WEBPACK_IMPORTED_MODULE_3__.DATA_INVALID;
         }
         const stream = formatContext.createStream();
@@ -115,58 +184,19 @@ class IWebVttFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_4__["default"] {
         stream.timeBase.num = 1;
         const header = await formatContext.ioReader.readLine();
         if (header.indexOf('-') > 0) {
-            stream.metadata['title'] = header.split('-').pop().trim();
+            stream.metadata["title" /* AVStreamMetadataKey.TITLE */] = header.split('-').pop().trim();
         }
         this.index = 0;
         const styles = [];
         let lastStartTs = BigInt(0);
         try {
             while (true) {
-                const { chunk, pos } = await this.readChunk(formatContext);
-                if (chunk === '' || /^NOTE/.test(chunk)) {
-                    continue;
-                }
-                if (/^STYLE/.test(chunk)) {
-                    styles.push({
-                        style: chunk.replace(/STYLE[\s|\n]?/, ''),
-                        pos
-                    });
-                }
-                const lines = chunk.split('\n');
-                let identifier;
-                let options;
-                // identifier
-                if (lines[0].indexOf('-->') === -1) {
-                    identifier = lines.shift().trim();
-                }
-                let times = lines.shift().split('-->');
-                const startTs = (0,common_util_time__WEBPACK_IMPORTED_MODULE_10__.hhColonDDColonSSDotMill2Int64)(times.shift());
-                times = times.shift().trim().split(' ');
-                const endTs = (0,common_util_time__WEBPACK_IMPORTED_MODULE_10__.hhColonDDColonSSDotMill2Int64)(times.shift());
-                if (endTs <= startTs) {
-                    continue;
-                }
-                times = times.filter((t) => t !== '');
-                if (times.length) {
-                    options = times.join(' ');
-                }
-                const context = lines.join('\n').trim();
-                if (!context) {
-                    continue;
-                }
+                const cue = await this.readCue(formatContext, styles);
                 stream.nbFrames++;
-                stream.duration = endTs;
-                const cue = {
-                    identifier,
-                    options,
-                    context,
-                    startTs,
-                    endTs,
-                    pos
-                };
-                if (startTs >= lastStartTs) {
+                stream.duration = cue.endTs;
+                if (cue.startTs >= lastStartTs) {
                     this.queue.push(cue);
-                    lastStartTs = startTs;
+                    lastStartTs = cue.startTs;
                 }
                 else {
                     common_util_array__WEBPACK_IMPORTED_MODULE_8__.sortInsert(this.queue, cue, (a) => {
@@ -178,23 +208,54 @@ class IWebVttFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_4__["default"] {
                         }
                     });
                 }
+                if (formatContext.ioReader.flags & 2 /* IOFlags.SLICE */) {
+                    break;
+                }
             }
         }
-        catch (error) {
-            stream.metadata['styles'] = styles;
-            return 0;
-        }
+        catch (error) { }
+        stream.metadata["styles" /* AVStreamMetadataKey.STYLES */] = styles;
+        return 0;
     }
     async readAVPacket(formatContext, avpacket) {
-        if (!this.queue.length) {
-            return avutil_error__WEBPACK_IMPORTED_MODULE_3__.DATA_INVALID;
-        }
-        if (this.index >= this.queue.length) {
-            return -1048576 /* IOError.END */;
-        }
         const stream = formatContext.streams.find((stream) => {
             return stream.codecpar.codecType === 3 /* AVMediaType.AVMEDIA_TYPE_SUBTITLE */;
         });
+        if (formatContext.ioReader.flags & 2 /* IOFlags.SLICE */) {
+            if (this.index >= this.queue.length) {
+                try {
+                    const cue = await this.readCue(formatContext, stream.metadata["styles" /* AVStreamMetadataKey.STYLES */]);
+                    if (this.queue.length) {
+                        const last = this.queue[this.queue.length - 1];
+                        // hls 的 字幕可能会重复
+                        if (last.startTs === cue.startTs
+                            && last.endTs === cue.endTs
+                            && last.context === cue.context) {
+                            return this.readAVPacket(formatContext, avpacket);
+                        }
+                    }
+                    this.queue.push(cue);
+                    stream.nbFrames++;
+                    stream.duration = cue.endTs;
+                }
+                catch (error) {
+                    if (formatContext.ioReader.error !== -1048576 /* IOError.END */
+                        && formatContext.ioReader.error !== -1048572 /* IOError.ABORT */) {
+                        common_util_logger__WEBPACK_IMPORTED_MODULE_2__.error(`read cue error, ${error}`, cheap__fileName__0, 252);
+                        return avutil_error__WEBPACK_IMPORTED_MODULE_3__.DATA_INVALID;
+                    }
+                    return formatContext.ioReader.error;
+                }
+            }
+        }
+        else {
+            if (!this.queue.length) {
+                return avutil_error__WEBPACK_IMPORTED_MODULE_3__.DATA_INVALID;
+            }
+            if (this.index >= this.queue.length) {
+                return -1048576 /* IOError.END */;
+            }
+        }
         const cue = this.queue[this.index++];
         cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[15](avpacket + 32, stream.index);
         cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[15](avpacket + 76, stream.timeBase.den);
@@ -223,6 +284,13 @@ class IWebVttFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_4__["default"] {
         if (flags & 2 /* AVSeekFlags.BYTE */) {
             return BigInt(avutil_error__WEBPACK_IMPORTED_MODULE_3__.FORMAT_NOT_SUPPORT);
         }
+        if (flags & 16 /* AVSeekFlags.TIMESTAMP */ && (formatContext.ioReader.flags & 2 /* IOFlags.SLICE */)) {
+            const seekTime = (0,avutil_util_rational__WEBPACK_IMPORTED_MODULE_12__.avRescaleQ)(timestamp, stream.timeBase, avutil_constant__WEBPACK_IMPORTED_MODULE_11__.AV_MILLI_TIME_BASE_Q);
+            await formatContext.ioReader.seek(seekTime, true);
+            this.queue.length = 0;
+            this.index = 0;
+            return BigInt(0);
+        }
         if (timestamp <= BigInt(0)) {
             this.index = 0;
             return BigInt(0);
@@ -234,7 +302,7 @@ class IWebVttFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_4__["default"] {
             return 1;
         });
         if (index >= 0) {
-            common_util_logger__WEBPACK_IMPORTED_MODULE_2__.debug(`seek in cues, found index: ${index}, pts: ${this.queue[index].startTs}, pos: ${this.queue[index].pos}`, cheap__fileName__0, 256);
+            common_util_logger__WEBPACK_IMPORTED_MODULE_2__.debug(`seek in cues, found index: ${index}, pts: ${this.queue[index].startTs}, pos: ${this.queue[index].pos}`, cheap__fileName__0, 319);
             this.index = Math.max(index - 1, 0);
             while (this.index > 0) {
                 if (this.queue[this.index - 1].startTs === this.queue[this.index].startTs
@@ -268,10 +336,10 @@ class IWebVttFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_4__["default"] {
 /* harmony export */   hhColonDDColonSSDotMill2Int64: () => (/* binding */ hhColonDDColonSSDotMill2Int64)
 /* harmony export */ });
 function hhColonDDColonSSDotMill2Int64(time) {
-    time = time.trim();
     if (!time) {
         return -BigInt(1);
     }
+    time = time.trim();
     let list = time.split(':');
     let ts = BigInt(0);
     if (list.length === 3) {
@@ -280,14 +348,16 @@ function hhColonDDColonSSDotMill2Int64(time) {
     ts += BigInt(+(list.shift().trim())) * BigInt(60000);
     list = list.shift().trim().split('.');
     ts += BigInt(+(list.shift().trim())) * BigInt(1000);
-    ts += BigInt(+(list.shift().trim()));
+    if (list.length) {
+        ts += BigInt(+(list.shift().trim()));
+    }
     return ts;
 }
 function hhColonDDColonSSCommaMill2Int64(time) {
-    time = time.trim();
     if (!time) {
         return -BigInt(1);
     }
+    time = time.trim();
     let list = time.split(':');
     let ts = BigInt(0);
     if (list.length === 3) {
@@ -296,7 +366,9 @@ function hhColonDDColonSSCommaMill2Int64(time) {
     ts += BigInt(+(list.shift().trim())) * BigInt(60000);
     list = list.shift().trim().split(',');
     ts += BigInt(+(list.shift().trim())) * BigInt(1000);
-    ts += BigInt(+(list.shift().trim()));
+    if (list.length) {
+        ts += BigInt(+(list.shift().trim()));
+    }
     return ts;
 }
 

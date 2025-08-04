@@ -13,13 +13,13 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   "default": () => (/* binding */ OIVFFormat)
 /* harmony export */ });
 /* harmony import */ var cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! cheap/ctypeEnumRead */ "./src/cheap/ctypeEnumRead.ts");
-/* harmony import */ var _avutil_struct_rational_ts__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./..\..\avutil\struct\rational.ts */ "./src/avutil/struct/rational.ts");
+/* harmony import */ var _avutil_struct_rational__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./..\..\avutil\struct\rational */ "./src/avutil/struct/rational.ts");
 /* harmony import */ var cheap_std_structAccess__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! cheap/std/structAccess */ "./src/cheap/std/structAccess.ts");
 /* harmony import */ var _OFormat__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./OFormat */ "./src/avformat/formats/OFormat.ts");
 /* harmony import */ var common_util_logger__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! common/util/logger */ "./src/common/util/logger.ts");
 /* harmony import */ var avutil_util_rational__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! avutil/util/rational */ "./src/avutil/util/rational.ts");
 /* harmony import */ var avutil_util_avpacket__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! avutil/util/avpacket */ "./src/avutil/util/avpacket.ts");
-var cheap__fileName__1 = "src\\avformat\\formats\\OIvfFormat.ts";
+const cheap__fileName__1 = "src\\avformat\\formats\\OIvfFormat.ts";
 
 
 
@@ -110,7 +110,7 @@ class OIVFFormat extends _OFormat__WEBPACK_IMPORTED_MODULE_3__["default"] {
             const stream = formatContext.getStreamByMediaType(0 /* AVMediaType.AVMEDIA_TYPE_VIDEO */);
             if (stream) {
                 formatContext.ioWriter.writeUint32(cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[15](avpacket + 28));
-                formatContext.ioWriter.writeUint64((0,avutil_util_rational__WEBPACK_IMPORTED_MODULE_5__.avRescaleQ)(cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[17](avpacket + 8) || cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[17](avpacket + 16), (0,cheap_std_structAccess__WEBPACK_IMPORTED_MODULE_2__["default"])(avpacket + 72, _avutil_struct_rational_ts__WEBPACK_IMPORTED_MODULE_1__.Rational), stream.timeBase));
+                formatContext.ioWriter.writeUint64((0,avutil_util_rational__WEBPACK_IMPORTED_MODULE_5__.avRescaleQ2)(cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[17](avpacket + 8) || cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[17](avpacket + 16), avpacket + 72, stream.timeBase));
                 formatContext.ioWriter.writeBuffer((0,avutil_util_avpacket__WEBPACK_IMPORTED_MODULE_6__.getAVPacketData)(avpacket));
                 this.header.framesCount++;
             }

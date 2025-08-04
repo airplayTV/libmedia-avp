@@ -22,7 +22,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var common_util_array__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! common/util/array */ "./src/common/util/array.ts");
 /* harmony import */ var common_util_text__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! common/util/text */ "./src/common/util/text.ts");
 /* harmony import */ var _ass_iass__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! ./ass/iass */ "./src/avformat/formats/ass/iass.ts");
-var cheap__fileName__0 = "src\\avformat\\formats\\IAssFormat.ts";
+const cheap__fileName__0 = "src\\avformat\\formats\\IAssFormat.ts";
 
 
 
@@ -320,7 +320,7 @@ const AssEventsFormatList = [
 /* harmony import */ var common_util_time__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! common/util/time */ "./src/common/util/time.ts");
 /* harmony import */ var ass_compiler_src_parser_effect__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ass-compiler/src/parser/effect */ "./node_modules/ass-compiler/src/parser/effect.js");
 /* harmony import */ var ass_compiler_src_parser_text__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ass-compiler/src/parser/text */ "./node_modules/ass-compiler/src/parser/text.js");
-var cheap__fileName__0 = "src\\avformat\\formats\\ass\\iass.ts";
+const cheap__fileName__0 = "src\\avformat\\formats\\ass\\iass.ts";
 /*
  * libmedia ass input util
  *
@@ -477,10 +477,10 @@ function parseEvent(formats, event) {
 /* harmony export */   hhColonDDColonSSDotMill2Int64: () => (/* binding */ hhColonDDColonSSDotMill2Int64)
 /* harmony export */ });
 function hhColonDDColonSSDotMill2Int64(time) {
-    time = time.trim();
     if (!time) {
         return -BigInt(1);
     }
+    time = time.trim();
     let list = time.split(':');
     let ts = BigInt(0);
     if (list.length === 3) {
@@ -489,14 +489,16 @@ function hhColonDDColonSSDotMill2Int64(time) {
     ts += BigInt(+(list.shift().trim())) * BigInt(60000);
     list = list.shift().trim().split('.');
     ts += BigInt(+(list.shift().trim())) * BigInt(1000);
-    ts += BigInt(+(list.shift().trim()));
+    if (list.length) {
+        ts += BigInt(+(list.shift().trim()));
+    }
     return ts;
 }
 function hhColonDDColonSSCommaMill2Int64(time) {
-    time = time.trim();
     if (!time) {
         return -BigInt(1);
     }
+    time = time.trim();
     let list = time.split(':');
     let ts = BigInt(0);
     if (list.length === 3) {
@@ -505,7 +507,9 @@ function hhColonDDColonSSCommaMill2Int64(time) {
     ts += BigInt(+(list.shift().trim())) * BigInt(60000);
     list = list.shift().trim().split(',');
     ts += BigInt(+(list.shift().trim())) * BigInt(1000);
-    ts += BigInt(+(list.shift().trim()));
+    if (list.length) {
+        ts += BigInt(+(list.shift().trim()));
+    }
     return ts;
 }
 
@@ -745,7 +749,7 @@ function parseTags(text) {
 
 
 function parseText(text) {
-  const pairs = text.split(/{([^{}]*?)}/);
+  const pairs = text.split(/{(.*?)}/);
   const parsed = [];
   if (pairs[0].length) {
     parsed.push({ tags: [], text: pairs[0], drawing: [] });

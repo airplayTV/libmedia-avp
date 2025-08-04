@@ -15,7 +15,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _OFormat__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./OFormat */ "./src/avformat/formats/OFormat.ts");
 /* harmony import */ var common_util_logger__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! common/util/logger */ "./src/common/util/logger.ts");
 /* harmony import */ var avutil_error__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! avutil/error */ "./src/avutil/error.ts");
-/* harmony import */ var _codecs_mp3__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../codecs/mp3 */ "./src/avformat/codecs/mp3.ts");
+/* harmony import */ var avutil_codecs_mp3__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! avutil/codecs/mp3 */ "./src/avutil/codecs/mp3.ts");
 /* harmony import */ var avutil_constant__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! avutil/constant */ "./src/avutil/constant.ts");
 /* harmony import */ var common_util_bigint__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! common/util/bigint */ "./src/common/util/bigint.ts");
 /* harmony import */ var _mp3_frameHeader__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ./mp3/frameHeader */ "./src/avformat/formats/mp3/frameHeader.ts");
@@ -25,7 +25,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var cheap_std_memory__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! cheap/std/memory */ "./src/cheap/std/memory.ts");
 /* harmony import */ var common_util_text__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(/*! common/util/text */ "./src/common/util/text.ts");
 /* harmony import */ var common_util_object__WEBPACK_IMPORTED_MODULE_13__ = __webpack_require__(/*! common/util/object */ "./src/common/util/object.ts");
-var cheap__fileName__0 = "src\\avformat\\formats\\OMp3Format.ts";
+const cheap__fileName__0 = "src\\avformat\\formats\\OMp3Format.ts";
 
 
 
@@ -82,7 +82,7 @@ class OMp3Format extends _OFormat__WEBPACK_IMPORTED_MODULE_1__["default"] {
             return stream.codecpar.codecId === 86017 /* AVCodecID.AV_CODEC_ID_MP3 */;
         });
         if (!stream) {
-            common_util_logger__WEBPACK_IMPORTED_MODULE_2__.error('can not found stream with mp3 codec', cheap__fileName__0, 125);
+            common_util_logger__WEBPACK_IMPORTED_MODULE_2__.error('can not found stream with mp3 codec', cheap__fileName__0, 126);
             return avutil_error__WEBPACK_IMPORTED_MODULE_3__.INVALID_ARGUMENT;
         }
         return 0;
@@ -122,7 +122,7 @@ class OMp3Format extends _OFormat__WEBPACK_IMPORTED_MODULE_1__["default"] {
             rateIdx = i;
         }
         if (rateIdx === freqTab.length) {
-            common_util_logger__WEBPACK_IMPORTED_MODULE_2__.warn('unsupported sample rate, not writing Xing header.', cheap__fileName__0, 171);
+            common_util_logger__WEBPACK_IMPORTED_MODULE_2__.warn('unsupported sample rate, not writing Xing header.', cheap__fileName__0, 172);
             return;
         }
         switch (stream.codecpar.chLayout.nbChannels) {
@@ -135,7 +135,7 @@ class OMp3Format extends _OFormat__WEBPACK_IMPORTED_MODULE_1__["default"] {
                 channels = 0;
                 break;
             default:
-                common_util_logger__WEBPACK_IMPORTED_MODULE_2__.warn('unsupported number of channels, not writing Xing header.', cheap__fileName__0, 185);
+                common_util_logger__WEBPACK_IMPORTED_MODULE_2__.warn('unsupported number of channels, not writing Xing header.', cheap__fileName__0, 186);
                 return;
         }
         // sync
@@ -145,7 +145,7 @@ class OMp3Format extends _OFormat__WEBPACK_IMPORTED_MODULE_1__["default"] {
         header |= (rateIdx << 2) << 8;
         header |= channels << 6;
         for (bitrateIdx = 1; bitrateIdx < 15; bitrateIdx++) {
-            let bitrate = BigInt(Math.floor(1000 * _codecs_mp3__WEBPACK_IMPORTED_MODULE_4__.getBitRateByVersionLayerIndex(ver, 2, bitrateIdx)));
+            let bitrate = BigInt(Math.floor(1000 * avutil_codecs_mp3__WEBPACK_IMPORTED_MODULE_4__.getBitRateByVersionLayerIndex(ver, 2, bitrateIdx)));
             let error = common_util_bigint__WEBPACK_IMPORTED_MODULE_6__.abs(bitrate - stream.codecpar.bitrate);
             if (error < bestBitrateError) {
                 bestBitrateError = error;
@@ -186,9 +186,9 @@ class OMp3Format extends _OFormat__WEBPACK_IMPORTED_MODULE_1__["default"] {
         // vbr quality
         // we write it, because some (broken) tools always expect it to be present
         this.xingWriter.writeUint32(0);
-        const metadata = stream.metadata;
-        if (metadata?.encoder) {
-            const buffer = common_util_text__WEBPACK_IMPORTED_MODULE_12__.encode(metadata.encoder);
+        const metadata = stream.metadata || {};
+        if (metadata["encoder" /* AVStreamMetadataKey.ENCODER */]) {
+            const buffer = common_util_text__WEBPACK_IMPORTED_MODULE_12__.encode(metadata["encoder" /* AVStreamMetadataKey.ENCODER */]);
             this.xingWriter.writeBuffer(buffer.subarray(0, 9));
         }
         else {
@@ -279,21 +279,21 @@ class OMp3Format extends _OFormat__WEBPACK_IMPORTED_MODULE_1__["default"] {
     }
     writeAVPacket(formatContext, avpacket) {
         if (!cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[15](avpacket + 28)) {
-            common_util_logger__WEBPACK_IMPORTED_MODULE_2__.warn(`packet\'s size is 0: ${cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[15](avpacket + 32)}, ignore it`, cheap__fileName__0, 368);
+            common_util_logger__WEBPACK_IMPORTED_MODULE_2__.warn(`packet\'s size is 0: ${cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[15](avpacket + 32)}, ignore it`, cheap__fileName__0, 369);
             return;
         }
         const stream = formatContext.getStreamByIndex(cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[15](avpacket + 32));
         if (!stream) {
-            common_util_logger__WEBPACK_IMPORTED_MODULE_2__.warn(`can not found the stream width the packet\'s streamIndex: ${cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[15](avpacket + 32)}, ignore it`, cheap__fileName__0, 375);
+            common_util_logger__WEBPACK_IMPORTED_MODULE_2__.warn(`can not found the stream width the packet\'s streamIndex: ${cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[15](avpacket + 32)}, ignore it`, cheap__fileName__0, 376);
             return;
         }
         if (stream.codecpar.codecId !== 86017 /* AVCodecID.AV_CODEC_ID_MP3 */) {
-            common_util_logger__WEBPACK_IMPORTED_MODULE_2__.warn(`packet\'s codecId is not mp3: ${cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[15](avpacket + 32)}, ignore it`, cheap__fileName__0, 380);
+            common_util_logger__WEBPACK_IMPORTED_MODULE_2__.warn(`packet\'s codecId is not mp3: ${cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[15](avpacket + 32)}, ignore it`, cheap__fileName__0, 381);
             return;
         }
         if (cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[20](avpacket + 24) && cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[15](avpacket + 28) > 4) {
             _mp3_frameHeader__WEBPACK_IMPORTED_MODULE_7__.parse(this.context.frameHeader, cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[8](cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[20](avpacket + 24)));
-            const bitrate = _codecs_mp3__WEBPACK_IMPORTED_MODULE_4__.getBitRateByVersionLayerIndex(this.context.frameHeader.version, this.context.frameHeader.layer, this.context.frameHeader.bitrateIndex);
+            const bitrate = avutil_codecs_mp3__WEBPACK_IMPORTED_MODULE_4__.getBitRateByVersionLayerIndex(this.context.frameHeader.version, this.context.frameHeader.layer, this.context.frameHeader.bitrateIndex);
             if (!this.context.initialBitrate) {
                 this.context.initialBitrate = bitrate;
             }
@@ -310,7 +310,7 @@ class OMp3Format extends _OFormat__WEBPACK_IMPORTED_MODULE_1__["default"] {
             const stream = formatContext.streams.find((stream) => {
                 return stream.codecpar.codecId === 86017 /* AVCodecID.AV_CODEC_ID_MP3 */;
             });
-            const metadata = stream.metadata;
+            const metadata = stream.metadata || {};
             const id1Buffer = new Uint8Array(_mp3_mp3__WEBPACK_IMPORTED_MODULE_8__.ID3V1_SIZE);
             const id1Writer = new common_io_BufferWriter__WEBPACK_IMPORTED_MODULE_9__["default"](id1Buffer);
             id1Writer.writeString('TAG');
@@ -321,27 +321,27 @@ class OMp3Format extends _OFormat__WEBPACK_IMPORTED_MODULE_1__["default"] {
                     id1Writer.skip(30 - buffer.length);
                 }
             }
-            if (metadata.title) {
-                writeText(metadata.title);
+            if (metadata["title" /* AVStreamMetadataKey.TITLE */]) {
+                writeText(metadata["title" /* AVStreamMetadataKey.TITLE */]);
             }
             else {
                 id1Writer.skip(30);
             }
-            if (metadata.artist) {
-                writeText(metadata.artist);
+            if (metadata["artist" /* AVStreamMetadataKey.ARTIST */]) {
+                writeText(metadata["artist" /* AVStreamMetadataKey.ARTIST */]);
             }
             else {
                 id1Writer.skip(30);
             }
-            if (metadata.album) {
-                writeText(metadata.album);
+            if (metadata["album" /* AVStreamMetadataKey.ALBUM */]) {
+                writeText(metadata["album" /* AVStreamMetadataKey.ALBUM */]);
             }
             else {
                 id1Writer.skip(30);
             }
             id1Buffer[127] = 0xff;
-            if (metadata.genre) {
-                id1Buffer[127] = +metadata.genre;
+            if (metadata["genre" /* AVStreamMetadataKey.GENRE */]) {
+                id1Buffer[127] = +metadata["genre" /* AVStreamMetadataKey.GENRE */];
             }
             formatContext.ioWriter.writeBuffer(id1Buffer);
         }
@@ -371,7 +371,7 @@ class OMp3Format extends _OFormat__WEBPACK_IMPORTED_MODULE_1__["default"] {
 /* harmony export */   getFrameLength: () => (/* binding */ getFrameLength),
 /* harmony export */   parse: () => (/* binding */ parse)
 /* harmony export */ });
-/* harmony import */ var _codecs_mp3__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../../codecs/mp3 */ "./src/avformat/codecs/mp3.ts");
+/* harmony import */ var avutil_codecs_mp3__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! avutil/codecs/mp3 */ "./src/avutil/codecs/mp3.ts");
 /*
  * libmedia mp3 FrameHeader utils
  *
@@ -425,7 +425,7 @@ function parse(header, value) {
     header.emphasis = value & 3;
 }
 function getFrameLength(header, sampleRate) {
-    let frameSize = _codecs_mp3__WEBPACK_IMPORTED_MODULE_0__.getBitRateByVersionLayerIndex(header.version, header.layer, header.bitrateIndex);
+    let frameSize = avutil_codecs_mp3__WEBPACK_IMPORTED_MODULE_0__.getBitRateByVersionLayerIndex(header.version, header.layer, header.bitrateIndex);
     switch (header.layer) {
         case 1:
         default:
@@ -462,10 +462,9 @@ function getFrameLength(header, sampleRate) {
 /* harmony export */ });
 /* harmony import */ var common_util_logger__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! common/util/logger */ "./src/common/util/logger.ts");
 /* harmony import */ var common_util_text__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! common/util/text */ "./src/common/util/text.ts");
-var cheap__fileName__0 = "src\\avformat\\formats\\mp3\\id3v2.ts";
+const cheap__fileName__0 = "src\\avformat\\formats\\mp3\\id3v2.ts";
 
 
-// @ts-ignore
 async function getSize(ioReader, len) {
     let v = 0;
     while (len--) {
@@ -493,7 +492,6 @@ function decodeString(encoding, buffer) {
     const decoder = new TextDecoder(label);
     return decoder.decode(buffer);
 }
-// @ts-ignore
 async function parse(ioReader, len, id3v2, metadata) {
     const isV34 = id3v2.version !== 2;
     const tagHeaderLen = isV34 ? 10 : 6;
@@ -508,13 +506,13 @@ async function parse(ioReader, len, id3v2, metadata) {
             extLen -= 4;
         }
         if (extLen < 0) {
-            common_util_logger__WEBPACK_IMPORTED_MODULE_0__.error('invalid extended header length', cheap__fileName__0, 92);
+            common_util_logger__WEBPACK_IMPORTED_MODULE_0__.error('invalid extended header length', cheap__fileName__0, 88);
             return await error();
         }
         await ioReader.skip(extLen);
         len -= extLen + 4;
         if (len < 0) {
-            common_util_logger__WEBPACK_IMPORTED_MODULE_0__.error('extended header too long', cheap__fileName__0, 98);
+            common_util_logger__WEBPACK_IMPORTED_MODULE_0__.error('extended header too long', cheap__fileName__0, 94);
             await ioReader.seek(end);
             return await error();
         }
@@ -526,7 +524,7 @@ async function parse(ioReader, len, id3v2, metadata) {
             type = await ioReader.readString(4);
             size = await ioReader.readUint32();
             if (!size) {
-                common_util_logger__WEBPACK_IMPORTED_MODULE_0__.error('invalid frame size', cheap__fileName__0, 112);
+                common_util_logger__WEBPACK_IMPORTED_MODULE_0__.error('invalid frame size', cheap__fileName__0, 108);
                 break;
             }
             // flags
@@ -550,6 +548,26 @@ async function parse(ioReader, len, id3v2, metadata) {
             const language = await ioReader.readString(3);
             const buffer = await ioReader.readBuffer(size - 4);
             metadata.comment = `${language} ${decodeString(encoding, buffer)}`;
+        }
+        else if (type === 'PRIV') {
+            const pos = ioReader.getPos();
+            const items = [];
+            while (true) {
+                const c = await ioReader.readUint8();
+                if (c === 0) {
+                    break;
+                }
+                items.push(c);
+            }
+            const identifier = common_util_text__WEBPACK_IMPORTED_MODULE_1__.decode(new Uint8Array(items));
+            let value;
+            if (identifier === 'com.apple.streaming.transportStreamTimestamp') {
+                value = await ioReader.readUint64();
+            }
+            else {
+                value = await ioReader.readBuffer(size - Number(ioReader.getPos() - pos));
+            }
+            metadata[identifier] = value;
         }
         else {
             let content;
@@ -610,7 +628,7 @@ async function parse(ioReader, len, id3v2, metadata) {
                     metadata.composer = content;
                     break;
                 case 'TENC':
-                    metadata.encodedBy = content;
+                    metadata.vendor = content;
                     break;
                 case 'TLAN':
                     metadata.language = content;
@@ -728,8 +746,8 @@ function write(ioWriter, version, padding, metadata) {
     if (metadata.composer) {
         writeText('TCOM', metadata.composer);
     }
-    if (metadata.encodedBy) {
-        writeText('TENC', metadata.encodedBy);
+    if (metadata.vendor) {
+        writeText('TENC', metadata.vendor);
     }
     if (metadata.language) {
         writeText('TLAN', metadata.language);
@@ -813,30 +831,6 @@ function write(ioWriter, version, padding, metadata) {
 const XING_TOC_COUNT = 100;
 const ID3V1_SIZE = 128;
 const XING_SIZE = 156;
-
-
-/***/ }),
-
-/***/ "./src/common/util/bigint.ts":
-/*!***********************************!*\
-  !*** ./src/common/util/bigint.ts ***!
-  \***********************************/
-/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
-
-/* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   abs: () => (/* binding */ abs),
-/* harmony export */   max: () => (/* binding */ max),
-/* harmony export */   min: () => (/* binding */ min)
-/* harmony export */ });
-function abs(a) {
-    return a > 0 ? a : -a;
-}
-function max(a, b) {
-    return a > b ? a : b;
-}
-function min(a, b) {
-    return a > b ? b : a;
-}
 
 
 /***/ })

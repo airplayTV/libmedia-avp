@@ -64,7 +64,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var common_util_array__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! common/util/array */ "./src/common/util/array.ts");
 /* harmony import */ var common_util_text__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! common/util/text */ "./src/common/util/text.ts");
 /* harmony import */ var common_util_time__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! common/util/time */ "./src/common/util/time.ts");
-var cheap__fileName__12 = "src\\avformat\\formats\\ISubRipFormat.ts";
+const cheap__fileName__12 = "src\\avformat\\formats\\ISubRipFormat.ts";
 
 
 
@@ -230,10 +230,10 @@ class IWebVttFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_4__["default"] {
 /* harmony export */   hhColonDDColonSSDotMill2Int64: () => (/* binding */ hhColonDDColonSSDotMill2Int64)
 /* harmony export */ });
 function hhColonDDColonSSDotMill2Int64(time) {
-    time = time.trim();
     if (!time) {
         return -BigInt(1);
     }
+    time = time.trim();
     let list = time.split(':');
     let ts = BigInt(0);
     if (list.length === 3) {
@@ -242,14 +242,16 @@ function hhColonDDColonSSDotMill2Int64(time) {
     ts += BigInt(+(list.shift().trim())) * BigInt(60000);
     list = list.shift().trim().split('.');
     ts += BigInt(+(list.shift().trim())) * BigInt(1000);
-    ts += BigInt(+(list.shift().trim()));
+    if (list.length) {
+        ts += BigInt(+(list.shift().trim()));
+    }
     return ts;
 }
 function hhColonDDColonSSCommaMill2Int64(time) {
-    time = time.trim();
     if (!time) {
         return -BigInt(1);
     }
+    time = time.trim();
     let list = time.split(':');
     let ts = BigInt(0);
     if (list.length === 3) {
@@ -258,7 +260,9 @@ function hhColonDDColonSSCommaMill2Int64(time) {
     ts += BigInt(+(list.shift().trim())) * BigInt(60000);
     list = list.shift().trim().split(',');
     ts += BigInt(+(list.shift().trim())) * BigInt(1000);
-    ts += BigInt(+(list.shift().trim()));
+    if (list.length) {
+        ts += BigInt(+(list.shift().trim()));
+    }
     return ts;
 }
 

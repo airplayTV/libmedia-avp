@@ -55,7 +55,7 @@ class AVBSPipe {
 /* harmony import */ var common_crypto_aes_AESWebDecryptor__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! common/crypto/aes/AESWebDecryptor */ "./src/common/crypto/aes/AESWebDecryptor.ts");
 /* harmony import */ var common_timer_Sleep__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! common/timer/Sleep */ "./src/common/timer/Sleep.ts");
 /* harmony import */ var common_util_logger__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! common/util/logger */ "./src/common/util/logger.ts");
-var cheap__fileName__0 = "src\\avnetwork\\bsp\\aes\\AESDecryptPipe.ts";
+const cheap__fileName__0 = "src\\avnetwork\\bsp\\aes\\AESDecryptPipe.ts";
 
 
 
@@ -76,16 +76,20 @@ class AESDecryptPipe extends _AVBSPipe__WEBPACK_IMPORTED_MODULE_0__["default"] {
     ended;
     iv;
     key;
-    constructor(size = 1048576) {
+    mode;
+    pos;
+    constructor(mode = 0 /* AesMode.CBC */, size = 1048576) {
         super();
+        this.mode = mode;
         this.size = size;
         this.pointer = 0;
         this.endPointer = 0;
+        this.pos = 0;
         this.ended = false;
         this.buffer = new Uint8Array(size);
-        this.aesSoftDecryptor = new common_crypto_aes_AESSoftDecryptor__WEBPACK_IMPORTED_MODULE_1__["default"]();
+        this.aesSoftDecryptor = new common_crypto_aes_AESSoftDecryptor__WEBPACK_IMPORTED_MODULE_1__["default"](mode);
         if (common_crypto_aes_AESWebDecryptor__WEBPACK_IMPORTED_MODULE_2__["default"].isSupport() && AESWebDecryptorSupport) {
-            this.aesWebDecryptor = new common_crypto_aes_AESWebDecryptor__WEBPACK_IMPORTED_MODULE_2__["default"]();
+            this.aesWebDecryptor = new common_crypto_aes_AESWebDecryptor__WEBPACK_IMPORTED_MODULE_2__["default"](mode);
         }
         this.aesTargetDecryptor = this.aesWebDecryptor || this.aesSoftDecryptor;
     }
@@ -98,7 +102,9 @@ class AESDecryptPipe extends _AVBSPipe__WEBPACK_IMPORTED_MODULE_0__["default"] {
         if (this.aesWebDecryptor) {
             await this.aesWebDecryptor.expandKey(key);
         }
-        this.aesSoftDecryptor.expandKey(key);
+        if (key.byteLength <= 8) {
+            this.aesSoftDecryptor.expandKey(key);
+        }
     }
     async flush_(buffer) {
         while (true) {
@@ -130,7 +136,7 @@ class AESDecryptPipe extends _AVBSPipe__WEBPACK_IMPORTED_MODULE_0__["default"] {
                 return;
             }
             else {
-                common_util_logger__WEBPACK_IMPORTED_MODULE_4__.fatal(`AESPipe error, flush failed, ret: ${len}`, cheap__fileName__0, 120);
+                common_util_logger__WEBPACK_IMPORTED_MODULE_4__.fatal(`AESPipe error, flush failed, ret: ${len}`, cheap__fileName__0, 128);
             }
         }
         this.endPointer += len;
@@ -143,7 +149,7 @@ class AESDecryptPipe extends _AVBSPipe__WEBPACK_IMPORTED_MODULE_0__["default"] {
         }
         return array;
     }
-    async decrypt(length) {
+    async decryptCBC(length) {
         let nextBlock;
         let padding = 0;
         if (this.aesTargetDecryptor === this.aesWebDecryptor && !this.ended) {
@@ -161,20 +167,51 @@ class AESDecryptPipe extends _AVBSPipe__WEBPACK_IMPORTED_MODULE_0__["default"] {
                 this.buffer.set(nextBlock, this.pointer + length);
             }
             this.pointer += length;
+            this.pos += length;
             return new Uint8Array(buffer);
         }
         catch (error) {
-            if (this.aesTargetDecryptor = this.aesWebDecryptor) {
-                common_util_logger__WEBPACK_IMPORTED_MODULE_4__.warn('web aes decrypt failed, try to use soft decryptor', cheap__fileName__0, 169);
+            if (this.aesTargetDecryptor === this.aesWebDecryptor && this.key.byteLength <= 8) {
+                common_util_logger__WEBPACK_IMPORTED_MODULE_4__.warn('web aes decrypt failed, try to use soft decryptor', cheap__fileName__0, 178);
                 if (nextBlock) {
                     this.buffer.set(nextBlock, this.pointer + length);
                 }
                 this.aesTargetDecryptor = this.aesSoftDecryptor;
                 AESWebDecryptorSupport = false;
-                return this.decrypt(length);
+                return this.decryptCBC(length);
             }
             else {
-                common_util_logger__WEBPACK_IMPORTED_MODULE_4__.fatal('aes decrypt failed', cheap__fileName__0, 179);
+                common_util_logger__WEBPACK_IMPORTED_MODULE_4__.fatal('aes decrypt failed', cheap__fileName__0, 188);
+            }
+        }
+    }
+    getCTRIv() {
+        const result = new Uint8Array(this.iv).slice();
+        let carry = Math.floor(this.pos / BLOCK_SIZE);
+        for (let i = 15; i >= 0 && carry > 0; i--) {
+            const sum = result[i] + (carry & 0xff);
+            result[i] = sum & 0xff;
+            carry = (carry >>> 8) + (sum >> 8);
+        }
+        return result.buffer;
+    }
+    async decryptCTR(length) {
+        try {
+            const encryptData = this.buffer.subarray(this.pointer, this.pointer + length);
+            const buffer = await this.aesTargetDecryptor.decrypt(encryptData, this.getCTRIv());
+            this.pointer += length;
+            this.pos += length;
+            return new Uint8Array(buffer);
+        }
+        catch (error) {
+            if (this.aesTargetDecryptor === this.aesWebDecryptor && this.key.byteLength <= 8) {
+                common_util_logger__WEBPACK_IMPORTED_MODULE_4__.warn('web aes decrypt failed, try to use soft decryptor', cheap__fileName__0, 214);
+                this.aesTargetDecryptor = this.aesSoftDecryptor;
+                AESWebDecryptorSupport = false;
+                return this.decryptCTR(length);
+            }
+            else {
+                common_util_logger__WEBPACK_IMPORTED_MODULE_4__.fatal('aes decrypt failed', cheap__fileName__0, 220);
             }
         }
     }
@@ -185,13 +222,21 @@ class AESDecryptPipe extends _AVBSPipe__WEBPACK_IMPORTED_MODULE_0__["default"] {
         if (this.remainingLength() === 0) {
             return -1048576 /* IOError.END */;
         }
-        const length = Math.min(Math.floor((this.remainingLength() - (this.ended ? 0 : REMAINING_LENGTH)) / BLOCK_SIZE) * BLOCK_SIZE, buffer.length);
-        let decryptBuffer = await this.decrypt(length);
-        if (this.ended && this.aesTargetDecryptor === this.aesSoftDecryptor) {
-            decryptBuffer = this.removePadding(decryptBuffer);
+        if (this.mode === 0 /* AesMode.CBC */) {
+            const length = Math.min(Math.floor((this.remainingLength() - (this.ended ? 0 : REMAINING_LENGTH)) / BLOCK_SIZE) * BLOCK_SIZE, buffer.length);
+            let decryptBuffer = await this.decryptCBC(length);
+            if (this.ended && this.aesTargetDecryptor === this.aesSoftDecryptor) {
+                decryptBuffer = this.removePadding(decryptBuffer);
+            }
+            buffer.set(decryptBuffer);
+            return decryptBuffer.length;
         }
-        buffer.set(decryptBuffer);
-        return decryptBuffer.length;
+        else {
+            const length = this.ended ? this.remainingLength() : Math.min(Math.floor(this.remainingLength() / BLOCK_SIZE) * BLOCK_SIZE, buffer.length);
+            let decryptBuffer = await this.decryptCTR(length);
+            buffer.set(decryptBuffer);
+            return decryptBuffer.length;
+        }
     }
 }
 
@@ -218,7 +263,10 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var common_util_logger__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! common/util/logger */ "./src/common/util/logger.ts");
 /* harmony import */ var _bsp_aes_AESDecryptPipe__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ../bsp/aes/AESDecryptPipe */ "./src/avnetwork/bsp/aes/AESDecryptPipe.ts");
 /* harmony import */ var common_util_is__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! common/util/is */ "./src/common/util/is.ts");
-var cheap__fileName__0 = "src\\avnetwork\\ioLoader\\HlsIOLoader.ts";
+/* harmony import */ var avutil_error__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! avutil/error */ "./src/avutil/error.ts");
+/* harmony import */ var common_crypto_aes_AESWebDecryptor__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! common/crypto/aes/AESWebDecryptor */ "./src/common/crypto/aes/AESWebDecryptor.ts");
+/* harmony import */ var avutil_stringEnum__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(/*! avutil/stringEnum */ "./src/avutil/stringEnum.ts");
+const cheap__fileName__0 = "src\\avnetwork\\ioLoader\\HlsIOLoader.ts";
 /*
  * libmedia hls loader
  *
@@ -254,189 +302,223 @@ var cheap__fileName__0 = "src\\avnetwork\\ioLoader\\HlsIOLoader.ts";
 
 
 
+
+
+
 const FETCHED_HISTORY_LIST_MAX = 10;
-class HlsIOLoader extends _IOLoader__WEBPACK_IMPORTED_MODULE_1__["default"] {
+function getFetchParams(info, method = 'GET') {
+    const params = {
+        method: 'GET',
+        headers: {},
+        mode: 'cors',
+        cache: 'default',
+        referrerPolicy: 'no-referrer-when-downgrade'
+    };
+    if (info.httpOptions?.headers) {
+        common_util_object__WEBPACK_IMPORTED_MODULE_2__.each(info.httpOptions.headers, (value, key) => {
+            params.headers[key] = value;
+        });
+    }
+    if (info.httpOptions?.credentials) {
+        params.credentials = info.httpOptions.credentials;
+    }
+    if (info.httpOptions?.referrerPolicy) {
+        params.referrerPolicy = info.httpOptions.referrerPolicy;
+    }
+    return params;
+}
+async function fetchMediaPlayList(url, info, options, signal) {
+    return new Promise((resolve, reject) => {
+        let retryCount = 0;
+        async function done() {
+            try {
+                const res = await fetch(url, {
+                    ...getFetchParams(info),
+                    signal
+                });
+                const text = await res.text();
+                const mediaPlayList = (0,avprotocol_m3u8_parser__WEBPACK_IMPORTED_MODULE_4__["default"])(text);
+                if (options.isLive && (!mediaPlayList.segments || mediaPlayList.segments.length < 2)) {
+                    let wait = 5;
+                    if (mediaPlayList.segments?.length) {
+                        wait = mediaPlayList.segments[0].duration * (2 - mediaPlayList.segments.length);
+                    }
+                    common_util_logger__WEBPACK_IMPORTED_MODULE_7__.warn(`wait for min buffer time, now segments: ${mediaPlayList.segments.length}`, cheap__fileName__0, 92);
+                    await new common_timer_Sleep__WEBPACK_IMPORTED_MODULE_0__["default"](wait);
+                    retryCount = 0;
+                    done();
+                }
+                resolve(mediaPlayList);
+            }
+            catch (error) {
+                if (error?.name === 'AbortError') {
+                    resolve(null);
+                    return;
+                }
+                if (retryCount < options.retryCount) {
+                    retryCount++;
+                    common_util_logger__WEBPACK_IMPORTED_MODULE_7__.error(`failed fetch m3u8 file, retry(${retryCount}/3)`, cheap__fileName__0, 106);
+                    await new common_timer_Sleep__WEBPACK_IMPORTED_MODULE_0__["default"](options.retryInterval);
+                    return done();
+                }
+                else {
+                    common_util_logger__WEBPACK_IMPORTED_MODULE_7__.error('HLSLoader: exception, fetch slice error', cheap__fileName__0, 111);
+                    reject();
+                }
+            }
+        }
+        done();
+    });
+}
+class MediaLoader {
+    options;
     info;
-    range;
-    masterPlaylist;
     mediaPlayList;
-    mediaPlayListIndex;
     fetchedMap;
     fetchedHistoryList;
     mediaListUrl;
     segmentIndex;
     currentUri;
     loader;
-    minBuffer;
     keyMap;
     currentIV;
     currentKey;
     aesDecryptPipe;
     initLoaded;
-    async fetchMasterPlayList() {
-        const params = {
-            method: 'GET',
-            headers: {},
-            mode: 'cors',
-            cache: 'default',
-            referrerPolicy: 'no-referrer-when-downgrade'
-        };
-        if (this.info.httpOptions?.headers) {
-            common_util_object__WEBPACK_IMPORTED_MODULE_2__.each(this.info.httpOptions.headers, (value, key) => {
-                params.headers[key] = value;
-            });
-        }
-        if (this.info.httpOptions?.credentials) {
-            params.credentials = this.info.httpOptions.credentials;
-        }
-        if (this.info.httpOptions?.referrerPolicy) {
-            params.referrerPolicy = this.info.httpOptions.referrerPolicy;
-        }
-        try {
-            const res = await fetch(this.info.url, params);
-            const text = await res.text();
-            const playList = (0,avprotocol_m3u8_parser__WEBPACK_IMPORTED_MODULE_4__["default"])(text);
-            if (playList.isMasterPlaylist) {
-                this.masterPlaylist = playList;
-            }
-            else {
-                this.mediaPlayList = playList;
-                if (this.options.isLive && (!this.mediaPlayList.segments || this.mediaPlayList.segments.length < 2)) {
-                    let wait = 5;
-                    if (this.mediaPlayList.segments?.length) {
-                        wait = this.mediaPlayList.segments[0].duration * (2 - this.mediaPlayList.segments.length);
-                    }
-                    common_util_logger__WEBPACK_IMPORTED_MODULE_7__.warn(`wait for min buffer time, now segments: ${this.mediaPlayList.segments.length}`, cheap__fileName__0, 116);
-                    await new common_timer_Sleep__WEBPACK_IMPORTED_MODULE_0__["default"](wait);
-                    return this.fetchMasterPlayList();
-                }
-                this.minBuffer = this.mediaPlayList.duration || 0;
-                if (this.mediaPlayList.endlist) {
-                    this.options.isLive = false;
-                }
-                this.mediaListUrl = this.info.url;
-            }
-            return playList;
-        }
-        catch (error) {
-            if (this.retryCount < this.options.retryCount) {
-                this.retryCount++;
-                common_util_logger__WEBPACK_IMPORTED_MODULE_7__.error(`failed fetch m3u8 file, retry(${this.retryCount}/3)`, cheap__fileName__0, 133);
-                await new common_timer_Sleep__WEBPACK_IMPORTED_MODULE_0__["default"](5);
-                return this.fetchMasterPlayList();
-            }
-            else {
-                this.status = 3 /* IOLoaderStatus.ERROR */;
-                common_util_logger__WEBPACK_IMPORTED_MODULE_7__.fatal('HLSLoader: exception, fetch slice error', cheap__fileName__0, 139);
-            }
-        }
-    }
-    async fetchMediaPlayList() {
-        let url;
-        if (this.masterPlaylist) {
-            const currentVariant = this.masterPlaylist.variants[this.mediaPlayListIndex];
-            if (!currentVariant) {
-                common_util_logger__WEBPACK_IMPORTED_MODULE_7__.fatal('no media playlist', cheap__fileName__0, 151);
-            }
-            url = currentVariant.uri;
-        }
-        else {
-            url = this.mediaListUrl;
-        }
-        if (!/^https?/.test(url)) {
-            url = common_util_url__WEBPACK_IMPORTED_MODULE_3__.buildAbsoluteURL(this.info.url, url);
-        }
-        this.mediaListUrl = url;
-        const params = {
-            method: 'GET',
-            headers: {},
-            mode: 'cors',
-            cache: 'default',
-            referrerPolicy: 'no-referrer-when-downgrade'
-        };
-        if (this.info.httpOptions?.headers) {
-            common_util_object__WEBPACK_IMPORTED_MODULE_2__.each(this.info.httpOptions.headers, (value, key) => {
-                params.headers[key] = value;
-            });
-        }
-        if (this.info.httpOptions?.credentials) {
-            params.credentials = this.info.httpOptions.credentials;
-        }
-        if (this.info.httpOptions?.referrerPolicy) {
-            params.referrerPolicy = this.info.httpOptions.referrerPolicy;
-        }
-        try {
-            const res = await fetch(url, params);
-            const text = await res.text();
-            this.mediaPlayList = (0,avprotocol_m3u8_parser__WEBPACK_IMPORTED_MODULE_4__["default"])(text);
-            if (this.options.isLive && (!this.mediaPlayList.segments || this.mediaPlayList.segments.length < 2)) {
-                let wait = 5;
-                if (this.mediaPlayList.segments?.length) {
-                    wait = this.mediaPlayList.segments[0].duration * (2 - this.mediaPlayList.segments.length);
-                }
-                common_util_logger__WEBPACK_IMPORTED_MODULE_7__.warn(`wait for min buffer time, now segments: ${this.mediaPlayList.segments.length}`, cheap__fileName__0, 196);
-                await new common_timer_Sleep__WEBPACK_IMPORTED_MODULE_0__["default"](wait);
-                return this.fetchMediaPlayList();
-            }
-            this.minBuffer = this.mediaPlayList.duration || 0;
-            if (this.mediaPlayList.endlist) {
-                this.options.isLive = false;
-            }
-            this.status = 2 /* IOLoaderStatus.BUFFERING */;
-            this.retryCount = 0;
-            return this.mediaPlayList;
-        }
-        catch (error) {
-            if (this.retryCount < this.options.retryCount) {
-                this.retryCount++;
-                common_util_logger__WEBPACK_IMPORTED_MODULE_7__.error(`failed fetch m3u8 file, retry(${this.retryCount}/3)`, cheap__fileName__0, 215);
-                await new common_timer_Sleep__WEBPACK_IMPORTED_MODULE_0__["default"](this.options.retryInterval);
-                return this.fetchMasterPlayList();
-            }
-            else {
-                this.status = 3 /* IOLoaderStatus.ERROR */;
-                common_util_logger__WEBPACK_IMPORTED_MODULE_7__.fatal('HLSLoader: exception, fetch slice error', cheap__fileName__0, 221);
-            }
-        }
-    }
-    async open(info, range) {
+    isInitLoader;
+    minBuffer;
+    pendingBuffer;
+    magicAdded;
+    sleep;
+    aborted;
+    signal;
+    constructor(options, info, mediaListUrl, mediaPlayList) {
+        this.options = options;
         this.info = info;
-        this.range = range;
-        if (!this.range.to) {
-            this.range.to = -1;
-        }
-        this.range.from = Math.max(this.range.from, 0);
-        this.mediaPlayListIndex = 0;
         this.segmentIndex = 0;
         this.fetchedMap = new Map();
         this.fetchedHistoryList = [];
-        this.status = 1 /* IOLoaderStatus.CONNECTING */;
-        this.retryCount = 0;
         this.keyMap = new Map();
-        await this.fetchMasterPlayList();
-        if (!this.mediaPlayList && this.masterPlaylist) {
-            await this.fetchMediaPlayList();
+        this.aborted = false;
+        if (mediaListUrl && mediaPlayList) {
+            this.setMediaPlayList(mediaListUrl, mediaPlayList);
+        }
+    }
+    setMediaPlayList(mediaListUrl, mediaPlayList) {
+        if (this.options.isLive) {
+            this.fetchedMap.clear();
+            this.fetchedHistoryList.length = 0;
+            this.segmentIndex = 0;
+            const currentSegment = mediaPlayList.segments.find((segment) => {
+                return segment.uri === this.currentUri;
+            });
+            if (currentSegment) {
+                mediaPlayList.segments.forEach((segment, index) => {
+                    if (segment.mediaSequenceNumber === currentSegment.mediaSequenceNumber + 1) {
+                        this.segmentIndex = index;
+                    }
+                    else if (segment.mediaSequenceNumber <= currentSegment.mediaSequenceNumber) {
+                        this.fetchedMap.set(segment.uri, true);
+                        this.fetchedHistoryList.push(segment.uri);
+                    }
+                });
+                while (this.fetchedHistoryList.length >= FETCHED_HISTORY_LIST_MAX) {
+                    this.fetchedMap.delete(this.fetchedHistoryList.shift());
+                }
+            }
+        }
+        this.mediaListUrl = mediaListUrl;
+        this.mediaPlayList = mediaPlayList;
+        this.minBuffer = this.mediaPlayList.duration || 0;
+        if (this.mediaPlayList.endlist) {
+            this.options.isLive = false;
         }
         this.initLoaded = true;
         if (this.mediaPlayList.segments.length && this.mediaPlayList.segments[0].map) {
             this.initLoaded = false;
         }
-        return 0;
+        if (this.mediaPlayList.lowLatencyCompatibility) {
+            const buffer = this.mediaPlayList.lowLatencyCompatibility.partHoldBack
+                || this.mediaPlayList.lowLatencyCompatibility.holdBack
+                || this.minBuffer;
+            let cache = 0;
+            let hasKeyframe = false;
+            let segIndex = 0;
+            for (let i = this.mediaPlayList.segments.length - 1; i >= 0; i--) {
+                const segment = this.mediaPlayList.segments[i];
+                if (segment.parts?.length) {
+                    if (!segment.uri) {
+                        continue;
+                    }
+                    for (let j = segment.parts.length - 1; j >= 0; j--) {
+                        const part = segment.parts[j];
+                        if (!part.hint) {
+                            cache += part.duration;
+                            if (part.independent) {
+                                hasKeyframe = true;
+                            }
+                            if (cache >= buffer && hasKeyframe) {
+                                segIndex = i;
+                                break;
+                            }
+                        }
+                    }
+                    if (cache >= buffer && hasKeyframe) {
+                        break;
+                    }
+                }
+                else {
+                    cache += segment.duration;
+                    hasKeyframe = true;
+                    if (cache >= buffer && hasKeyframe) {
+                        segIndex = i;
+                        break;
+                    }
+                }
+            }
+            this.fetchedMap.clear();
+            this.fetchedHistoryList.length = 0;
+            for (let i = 0; i < segIndex; i++) {
+                const segment = this.mediaPlayList.segments[i];
+                this.fetchedMap.set(segment.uri, true);
+                this.fetchedHistoryList.push(segment.uri);
+            }
+            while (this.fetchedHistoryList.length >= FETCHED_HISTORY_LIST_MAX) {
+                this.fetchedMap.delete(this.fetchedHistoryList.shift());
+            }
+            this.segmentIndex = segIndex;
+            this.minBuffer = cache;
+        }
     }
-    async checkNeedDecrypt(segment, sequence) {
-        if (!segment.key) {
+    getMediaListUrl() {
+        return this.mediaListUrl;
+    }
+    async checkNeedDecrypt(key, uri, sequence) {
+        if (!key) {
+            this.aesDecryptPipe = null;
             return;
         }
-        const keyUrl = segment.key.uri;
+        if (key.method.toLocaleLowerCase() !== 'aes-128'
+            && key.method.toLocaleLowerCase() !== 'aes-128-ctr'
+            && (key.method.toLocaleLowerCase() !== 'aes-256'
+                && key.method.toLocaleLowerCase() !== 'aes-256-ctr'
+                || !common_crypto_aes_AESWebDecryptor__WEBPACK_IMPORTED_MODULE_11__["default"].isSupport())) {
+            if (uri.split('.').pop() === 'mp4') {
+                this.aesDecryptPipe = null;
+                return;
+            }
+            common_util_logger__WEBPACK_IMPORTED_MODULE_7__.fatal(`m3u8 ts not support EXT-X-KEY METHOD ${key.method}`, cheap__fileName__0, 284);
+        }
+        const keyUrl = key.uri;
         if (this.keyMap.has(keyUrl)) {
             this.currentKey = this.keyMap.get(keyUrl);
         }
         else {
-            this.currentKey = await (await fetch((0,common_util_url__WEBPACK_IMPORTED_MODULE_3__.buildAbsoluteURL)(this.mediaListUrl, keyUrl))).arrayBuffer();
+            this.currentKey = await (await fetch((0,common_util_url__WEBPACK_IMPORTED_MODULE_3__.buildAbsoluteURL)(this.mediaListUrl, keyUrl), getFetchParams(this.info))).arrayBuffer();
             this.keyMap.set(keyUrl, this.currentKey);
         }
-        if (segment.key.iv) {
-            this.currentIV = segment.key.iv.buffer;
+        if (key.iv) {
+            this.currentIV = key.iv.buffer;
         }
         else {
             const iv = new Uint8Array(16);
@@ -444,13 +526,45 @@ class HlsIOLoader extends _IOLoader__WEBPACK_IMPORTED_MODULE_1__["default"] {
             dataView.setUint32(12, sequence, false);
             this.currentIV = iv.buffer;
         }
-        this.aesDecryptPipe = new _bsp_aes_AESDecryptPipe__WEBPACK_IMPORTED_MODULE_8__["default"]();
+        this.aesDecryptPipe = new _bsp_aes_AESDecryptPipe__WEBPACK_IMPORTED_MODULE_8__["default"](key.method.toLocaleLowerCase().indexOf('ctr') > 0 ? 1 /* AesMode.CTR */ : 0 /* AesMode.CBC */);
         this.aesDecryptPipe.onFlush = async (buffer) => {
             return this.loader.read(buffer);
         };
         await this.aesDecryptPipe.expandKey(this.currentKey, this.currentIV);
     }
+    handleSlice(len, buffer) {
+        const ext = this.loader.getUrl().split('.').pop();
+        if (ext !== 'mp3') {
+            // ID3
+            if (!this.magicAdded && buffer[0] === 0x49 && buffer[1] === 0x44 && buffer[2] === 0x33) {
+                const format = avutil_stringEnum__WEBPACK_IMPORTED_MODULE_12__.Ext2Format[ext] ?? -1 /* AVFormat.UNKNOWN */;
+                if (format === -1 /* AVFormat.UNKNOWN */) {
+                    return len;
+                }
+                if (len + 6 > buffer.length) {
+                    this.pendingBuffer = buffer.slice(len - 6);
+                }
+                buffer.set(buffer.slice(0, len - 6), 6);
+                // 拥有 ID3 标签的 aac 等格式添加一个私有的头 LIMA 
+                buffer[0] = 0x4c;
+                buffer[1] = 0x49;
+                buffer[2] = 0x4d;
+                buffer[3] = 0x41;
+                buffer[4] = (format >>> 8) & 0xff;
+                buffer[5] = format & 0xff;
+                this.magicAdded = true;
+                return this.pendingBuffer ? len : len + 6;
+            }
+        }
+        return len;
+    }
     async read(buffer) {
+        if (this.pendingBuffer) {
+            let len = this.pendingBuffer.length;
+            buffer.set(this.pendingBuffer);
+            this.pendingBuffer = null;
+            return len;
+        }
         let ret = 0;
         if (this.loader) {
             ret = this.aesDecryptPipe ? (await this.aesDecryptPipe.read(buffer)) : (await this.loader.read(buffer));
@@ -458,7 +572,7 @@ class HlsIOLoader extends _IOLoader__WEBPACK_IMPORTED_MODULE_1__["default"] {
                 return ret;
             }
             else {
-                if (this.initLoaded) {
+                if (!this.isInitLoader) {
                     if (this.options.isLive) {
                         this.fetchedMap.set(this.currentUri, true);
                         if (this.fetchedHistoryList.length === FETCHED_HISTORY_LIST_MAX) {
@@ -470,8 +584,6 @@ class HlsIOLoader extends _IOLoader__WEBPACK_IMPORTED_MODULE_1__["default"] {
                     else {
                         this.segmentIndex++;
                         if (this.segmentIndex >= this.mediaPlayList.segments.length) {
-                            common_util_logger__WEBPACK_IMPORTED_MODULE_7__.info('hls segments ended', cheap__fileName__0, 317);
-                            this.status = 4 /* IOLoaderStatus.COMPLETE */;
                             return -1048576 /* IOError.END */;
                         }
                     }
@@ -484,31 +596,46 @@ class HlsIOLoader extends _IOLoader__WEBPACK_IMPORTED_MODULE_1__["default"] {
         }
         if (this.options.isLive) {
             const segments = this.mediaPlayList.segments.filter((segment) => {
-                return !this.fetchedMap.get(segment.uri);
+                return segment.uri && !this.fetchedMap.get(segment.uri);
             });
             if (!segments.length) {
                 if (this.mediaPlayList.endlist) {
-                    this.status = 4 /* IOLoaderStatus.COMPLETE */;
                     return -1048576 /* IOError.END */;
                 }
                 const wait = (this.minBuffer - ((0,common_function_getTimestamp__WEBPACK_IMPORTED_MODULE_6__["default"])() - this.mediaPlayList.timestamp) / 1000) / 2;
                 if (wait > 0) {
-                    await new common_timer_Sleep__WEBPACK_IMPORTED_MODULE_0__["default"](wait);
+                    this.sleep = new common_timer_Sleep__WEBPACK_IMPORTED_MODULE_0__["default"](wait);
+                    await this.sleep;
+                    this.sleep = null;
+                    if (this.aborted) {
+                        return -1048576 /* IOError.END */;
+                    }
                 }
-                await this.fetchMediaPlayList();
+                if (typeof AbortController === 'function') {
+                    this.signal = new AbortController();
+                }
+                this.mediaPlayList = await fetchMediaPlayList(this.mediaListUrl, this.info, this.options, this.signal?.signal);
+                this.signal = null;
+                if (this.aborted) {
+                    return -1048576 /* IOError.END */;
+                }
                 return this.read(buffer);
             }
+            this.isInitLoader = !!(segments[0].map?.uri && !this.initLoaded);
             this.currentUri = segments[0].uri;
-            if (this.initLoaded) {
-                await this.checkNeedDecrypt(segments[0], this.segmentIndex);
+            if (!this.isInitLoader) {
+                await this.checkNeedDecrypt(segments[0].key, this.currentUri, this.segmentIndex + (this.mediaPlayList.mediaSequenceBase || 0));
+            }
+            else if (segments[0].map?.key) {
+                await this.checkNeedDecrypt(segments[0].map.key, segments[0].map.uri, this.segmentIndex + (this.mediaPlayList.mediaSequenceBase || 0));
             }
             this.loader = new _FetchIOLoader__WEBPACK_IMPORTED_MODULE_5__["default"](common_util_object__WEBPACK_IMPORTED_MODULE_2__.extend({}, this.options, { disableSegment: true, loop: false }));
-            const url = (0,common_util_url__WEBPACK_IMPORTED_MODULE_3__.buildAbsoluteURL)(this.mediaListUrl, this.initLoaded ? this.currentUri : segments[0].map.uri);
+            const url = (0,common_util_url__WEBPACK_IMPORTED_MODULE_3__.buildAbsoluteURL)(this.mediaListUrl, this.isInitLoader ? segments[0].map.uri : this.currentUri);
             const range = {
                 from: 0,
                 to: -1
             };
-            const byteRange = this.initLoaded ? segments[0].byterange : segments[0].map.byterange;
+            const byteRange = this.isInitLoader ? segments[0].map.byterange : segments[0].byterange;
             if (byteRange) {
                 range.from = byteRange.offset;
                 range.to = byteRange.offset + byteRange.length;
@@ -516,23 +643,31 @@ class HlsIOLoader extends _IOLoader__WEBPACK_IMPORTED_MODULE_1__["default"] {
             await this.loader.open(common_util_object__WEBPACK_IMPORTED_MODULE_2__.extend({}, this.info, {
                 url,
             }), range);
-            return this.aesDecryptPipe ? this.aesDecryptPipe.read(buffer) : this.loader.read(buffer);
+            const ret = await (this.aesDecryptPipe ? this.aesDecryptPipe.read(buffer) : this.loader.read(buffer));
+            if (ret > 10) {
+                return this.handleSlice(ret, buffer);
+            }
+            return ret;
         }
         else {
             this.loader = new _FetchIOLoader__WEBPACK_IMPORTED_MODULE_5__["default"](common_util_object__WEBPACK_IMPORTED_MODULE_2__.extend({}, this.options, { disableSegment: true, loop: false }));
             let segment = this.mediaPlayList.segments[this.segmentIndex];
-            while (!segment.uri) {
+            while (segment && !segment.uri) {
                 segment = this.mediaPlayList.segments[++this.segmentIndex];
             }
-            if (this.initLoaded) {
-                await this.checkNeedDecrypt(segment, this.segmentIndex);
+            this.isInitLoader = !!(segment.map?.uri && !this.initLoaded);
+            if (!this.isInitLoader) {
+                await this.checkNeedDecrypt(segment.key, segment.uri, this.segmentIndex + (this.mediaPlayList.mediaSequenceBase || 0));
             }
-            const url = (0,common_util_url__WEBPACK_IMPORTED_MODULE_3__.buildAbsoluteURL)(this.mediaListUrl, this.initLoaded ? segment.uri : segment.map.uri);
+            else if (segment.map?.key) {
+                await this.checkNeedDecrypt(segment.map.key, segment.map.uri, this.segmentIndex + (this.mediaPlayList.mediaSequenceBase || 0));
+            }
+            const url = (0,common_util_url__WEBPACK_IMPORTED_MODULE_3__.buildAbsoluteURL)(this.mediaListUrl, this.isInitLoader ? segment.map.uri : segment.uri);
             const range = {
                 from: 0,
                 to: -1
             };
-            const byteRange = this.initLoaded ? segment.byterange : segment.map.byterange;
+            const byteRange = this.isInitLoader ? segment.map.byterange : segment.byterange;
             if (byteRange) {
                 range.from = byteRange.offset;
                 range.to = byteRange.offset + byteRange.length;
@@ -540,7 +675,11 @@ class HlsIOLoader extends _IOLoader__WEBPACK_IMPORTED_MODULE_1__["default"] {
             await this.loader.open(common_util_object__WEBPACK_IMPORTED_MODULE_2__.extend({}, this.info, {
                 url,
             }), range);
-            return this.aesDecryptPipe ? this.aesDecryptPipe.read(buffer) : this.loader.read(buffer);
+            const ret = await (this.aesDecryptPipe ? this.aesDecryptPipe.read(buffer) : this.loader.read(buffer));
+            if (ret > 10) {
+                return this.handleSlice(ret, buffer);
+            }
+            return ret;
         }
     }
     async seek(timestamp) {
@@ -561,6 +700,151 @@ class HlsIOLoader extends _IOLoader__WEBPACK_IMPORTED_MODULE_1__["default"] {
             }
         }
         this.segmentIndex = index;
+        this.aborted = false;
+        return 0;
+    }
+    abortSleep() {
+        this.aborted = true;
+        if (this.loader) {
+            this.loader.abortSleep();
+        }
+        if (this.sleep) {
+            this.sleep.stop();
+            this.sleep = null;
+        }
+    }
+    async abort() {
+        this.abortSleep();
+        if (this.signal) {
+            this.signal.abort();
+            this.signal = null;
+        }
+        if (this.loader) {
+            await this.loader.abort();
+            this.loader = null;
+        }
+    }
+    getMinBuffer() {
+        return this.minBuffer;
+    }
+    getDuration() {
+        return this.mediaPlayList.duration;
+    }
+}
+class HlsIOLoader extends _IOLoader__WEBPACK_IMPORTED_MODULE_1__["default"] {
+    info;
+    masterPlaylist;
+    mediaPlayListIndex;
+    mainLoader;
+    loaders;
+    audioSelectedIndex;
+    subtitleSelectedIndex;
+    sleep;
+    aborted;
+    async fetchMasterPlayList() {
+        try {
+            const res = await fetch(this.info.url, getFetchParams(this.info));
+            const text = await res.text();
+            const playList = (0,avprotocol_m3u8_parser__WEBPACK_IMPORTED_MODULE_4__["default"])(text);
+            if (playList.isMasterPlaylist) {
+                this.masterPlaylist = playList;
+            }
+            else {
+                const mediaPlayList = playList;
+                if (this.options.isLive && (!mediaPlayList.segments || mediaPlayList.segments.length < 2)) {
+                    let wait = 5;
+                    if (mediaPlayList.segments?.length) {
+                        wait = mediaPlayList.segments[0].duration * (2 - mediaPlayList.segments.length);
+                    }
+                    common_util_logger__WEBPACK_IMPORTED_MODULE_7__.warn(`wait for min buffer time, now segments: ${mediaPlayList.segments.length}`, cheap__fileName__0, 579);
+                    await new common_timer_Sleep__WEBPACK_IMPORTED_MODULE_0__["default"](wait);
+                    return this.fetchMasterPlayList();
+                }
+                this.mainLoader = new MediaLoader(this.options, this.info, this.info.url, mediaPlayList);
+                this.loaders.set(0 /* AVMediaType.AVMEDIA_TYPE_VIDEO */, this.mainLoader);
+            }
+            return playList;
+        }
+        catch (error) {
+            if (this.retryCount < this.options.retryCount) {
+                this.retryCount++;
+                common_util_logger__WEBPACK_IMPORTED_MODULE_7__.error(`failed fetch m3u8 file, retry(${this.retryCount}/3)`, cheap__fileName__0, 596);
+                this.sleep = new common_timer_Sleep__WEBPACK_IMPORTED_MODULE_0__["default"](3);
+                await this.sleep;
+                this.sleep = null;
+                if (this.aborted) {
+                    common_util_logger__WEBPACK_IMPORTED_MODULE_7__.fatal('HLSLoader: exception, fetch abort', cheap__fileName__0, 601);
+                }
+                return this.fetchMasterPlayList();
+            }
+            else {
+                this.status = 3 /* IOLoaderStatus.ERROR */;
+                common_util_logger__WEBPACK_IMPORTED_MODULE_7__.fatal('HLSLoader: exception, fetch slice error', cheap__fileName__0, 607);
+            }
+        }
+    }
+    buildUrl(url) {
+        if (!/^https?/.test(url)) {
+            url = common_util_url__WEBPACK_IMPORTED_MODULE_3__.buildAbsoluteURL(this.info.url, url);
+        }
+        return url;
+    }
+    async createLoader() {
+        if (this.masterPlaylist) {
+            const currentVariant = this.masterPlaylist.variants[this.mediaPlayListIndex];
+            if (!currentVariant) {
+                common_util_logger__WEBPACK_IMPORTED_MODULE_7__.fatal('no media playlist', cheap__fileName__0, 623);
+            }
+            if (currentVariant.audio.length) {
+                const mediaUrl = this.buildUrl(currentVariant.audio[this.audioSelectedIndex].uri);
+                this.loaders.set(1 /* AVMediaType.AVMEDIA_TYPE_AUDIO */, new MediaLoader(this.options, this.info, mediaUrl, await fetchMediaPlayList(mediaUrl, this.info, this.options)));
+            }
+            if (currentVariant.subtitles.length) {
+                const mediaUrl = this.buildUrl(currentVariant.subtitles[this.subtitleSelectedIndex].uri);
+                this.loaders.set(3 /* AVMediaType.AVMEDIA_TYPE_SUBTITLE */, new MediaLoader(this.options, this.info, mediaUrl, await fetchMediaPlayList(mediaUrl, this.info, this.options)));
+            }
+            const mediaUrl = this.buildUrl(currentVariant.uri);
+            this.mainLoader = new MediaLoader(this.options, this.info, mediaUrl, await fetchMediaPlayList(mediaUrl, this.info, this.options));
+            this.loaders.set(0 /* AVMediaType.AVMEDIA_TYPE_VIDEO */, this.mainLoader);
+        }
+    }
+    async open(info) {
+        if (this.status === 2 /* IOLoaderStatus.BUFFERING */) {
+            return 0;
+        }
+        if (this.status !== 0 /* IOLoaderStatus.IDLE */) {
+            return avutil_error__WEBPACK_IMPORTED_MODULE_10__.INVALID_OPERATE;
+        }
+        this.info = info;
+        this.mediaPlayListIndex = 0;
+        this.audioSelectedIndex = 0;
+        this.subtitleSelectedIndex = 0;
+        this.loaders = new Map();
+        this.status = 1 /* IOLoaderStatus.CONNECTING */;
+        this.retryCount = 0;
+        this.aborted = false;
+        await this.fetchMasterPlayList();
+        if (!this.loaders.size && this.masterPlaylist) {
+            await this.createLoader();
+        }
+        this.status = 2 /* IOLoaderStatus.BUFFERING */;
+        return 0;
+    }
+    async read(buffer, options) {
+        if (!options) {
+            return avutil_error__WEBPACK_IMPORTED_MODULE_10__.INVALID_ARGUMENT;
+        }
+        const ret = await this.loaders.get(options.mediaType).read(buffer);
+        if (ret < 0 && ret !== -1048575 /* IOError.AGAIN */) {
+            this.status = ret === -1048576 /* IOError.END */ ? 4 /* IOLoaderStatus.COMPLETE */ : 3 /* IOLoaderStatus.ERROR */;
+        }
+        return ret;
+    }
+    async seek(timestamp, options) {
+        if (!options) {
+            return avutil_error__WEBPACK_IMPORTED_MODULE_10__.INVALID_ARGUMENT;
+        }
+        await this.loaders.get(options.mediaType).seek(timestamp);
         if (this.status === 4 /* IOLoaderStatus.COMPLETE */) {
             this.status = 2 /* IOLoaderStatus.BUFFERING */;
         }
@@ -570,9 +854,13 @@ class HlsIOLoader extends _IOLoader__WEBPACK_IMPORTED_MODULE_1__["default"] {
         return BigInt(0);
     }
     async abort() {
-        if (this.loader) {
-            await this.loader.abort();
-            this.loader = null;
+        for (let loader of this.loaders) {
+            await loader[1].abort();
+        }
+        this.aborted = true;
+        if (this.sleep) {
+            this.sleep.stop();
+            this.sleep = null;
         }
     }
     async stop() {
@@ -580,7 +868,25 @@ class HlsIOLoader extends _IOLoader__WEBPACK_IMPORTED_MODULE_1__["default"] {
         this.status = 0 /* IOLoaderStatus.IDLE */;
     }
     getDuration() {
-        return this.mediaPlayList.duration;
+        return this.mainLoader?.getDuration() ?? 0;
+    }
+    hasVideo() {
+        if (this.masterPlaylist) {
+            return this.masterPlaylist.variants.length > 0;
+        }
+        return !!this.mainLoader;
+    }
+    hasAudio() {
+        if (this.masterPlaylist) {
+            const currentVariant = this.masterPlaylist.variants[this.mediaPlayListIndex];
+            return currentVariant.audio.length > 0;
+        }
+    }
+    hasSubtitle() {
+        if (this.masterPlaylist) {
+            const currentVariant = this.masterPlaylist.variants[this.mediaPlayListIndex];
+            return currentVariant.subtitles.length > 0;
+        }
     }
     getVideoList() {
         return {
@@ -589,18 +895,103 @@ class HlsIOLoader extends _IOLoader__WEBPACK_IMPORTED_MODULE_1__["default"] {
                     width: variant.resolution?.width ?? 0,
                     height: variant.resolution?.height ?? 0,
                     frameRate: variant.frameRate ?? 0,
-                    codecs: variant.codecs
+                    codec: variant.codecs,
+                    bandwidth: variant.bandwidth
                 };
             }) ?? [],
+            selectedIndex: this.mediaPlayListIndex || 0
+        };
+    }
+    getAudioList() {
+        if (this.masterPlaylist && this.hasAudio()) {
+            const currentVariant = this.masterPlaylist.variants[this.mediaPlayListIndex];
+            return {
+                list: currentVariant.audio.map((item) => {
+                    return {
+                        lang: item.language,
+                        codec: item.name
+                    };
+                }),
+                selectedIndex: this.audioSelectedIndex
+            };
+        }
+        return {
+            list: [],
+            selectedIndex: 0
+        };
+    }
+    getSubtitleList() {
+        if (this.masterPlaylist && this.hasSubtitle()) {
+            const currentVariant = this.masterPlaylist.variants[this.mediaPlayListIndex];
+            return {
+                list: currentVariant.subtitles.map((item) => {
+                    return {
+                        lang: item.language,
+                        codec: item.name
+                    };
+                }),
+                selectedIndex: this.subtitleSelectedIndex
+            };
+        }
+        return {
+            list: [],
             selectedIndex: 0
         };
     }
     selectVideo(index) {
-        this.mediaPlayListIndex = index;
-        this.fetchMediaPlayList();
+        if (this.masterPlaylist) {
+            const currentVariant = this.masterPlaylist.variants[index];
+            if (currentVariant) {
+                const mediaUrl = this.buildUrl(currentVariant.uri);
+                fetchMediaPlayList(mediaUrl, this.info, this.options).then((list) => {
+                    this.loaders.get(0 /* AVMediaType.AVMEDIA_TYPE_VIDEO */).setMediaPlayList(mediaUrl, list);
+                    this.mediaPlayListIndex = index;
+                });
+                if (currentVariant.audio.length === 1
+                    && this.loaders.has(1 /* AVMediaType.AVMEDIA_TYPE_AUDIO */)
+                    && this.buildUrl(currentVariant.audio[0].uri) !== this.loaders.get(1 /* AVMediaType.AVMEDIA_TYPE_AUDIO */).getMediaListUrl()) {
+                    const mediaUrl = this.buildUrl(currentVariant.audio[0].uri);
+                    fetchMediaPlayList(mediaUrl, this.info, this.options).then((list) => {
+                        this.loaders.get(1 /* AVMediaType.AVMEDIA_TYPE_AUDIO */).setMediaPlayList(mediaUrl, list);
+                    });
+                }
+                if (currentVariant.subtitles.length === 1
+                    && this.loaders.has(3 /* AVMediaType.AVMEDIA_TYPE_SUBTITLE */)
+                    && this.buildUrl(currentVariant.subtitles[0].uri) !== this.loaders.get(3 /* AVMediaType.AVMEDIA_TYPE_SUBTITLE */).getMediaListUrl()) {
+                    const mediaUrl = this.buildUrl(currentVariant.subtitles[0].uri);
+                    fetchMediaPlayList(mediaUrl, this.info, this.options).then((list) => {
+                        this.loaders.get(3 /* AVMediaType.AVMEDIA_TYPE_SUBTITLE */).setMediaPlayList(mediaUrl, list);
+                    });
+                }
+            }
+        }
+    }
+    selectAudio(index) {
+        if (this.masterPlaylist) {
+            const currentVariant = this.masterPlaylist.variants[this.mediaPlayListIndex];
+            if (currentVariant?.audio[index]) {
+                const mediaUrl = this.buildUrl(currentVariant.audio[index].uri);
+                fetchMediaPlayList(mediaUrl, this.info, this.options).then((list) => {
+                    this.loaders.get(1 /* AVMediaType.AVMEDIA_TYPE_AUDIO */).setMediaPlayList(mediaUrl, list);
+                    this.audioSelectedIndex = index;
+                });
+            }
+        }
+    }
+    selectSubtitle(index) {
+        if (this.masterPlaylist) {
+            const currentVariant = this.masterPlaylist.variants[this.mediaPlayListIndex];
+            if (currentVariant?.subtitles[index]) {
+                const mediaUrl = this.buildUrl(currentVariant.subtitles[index].uri);
+                fetchMediaPlayList(mediaUrl, this.info, this.options).then((list) => {
+                    this.loaders.get(3 /* AVMediaType.AVMEDIA_TYPE_SUBTITLE */).setMediaPlayList(mediaUrl, list);
+                    this.subtitleSelectedIndex = index;
+                });
+            }
+        }
     }
     getMinBuffer() {
-        return this.minBuffer;
+        return this.mainLoader?.getMinBuffer() ?? 0;
     }
 }
 
@@ -619,7 +1010,7 @@ class HlsIOLoader extends _IOLoader__WEBPACK_IMPORTED_MODULE_1__["default"] {
 /* harmony import */ var _utils__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./utils */ "./src/avprotocol/m3u8/utils.ts");
 /* harmony import */ var _types__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./types */ "./src/avprotocol/m3u8/types.ts");
 /* harmony import */ var common_util_logger__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! common/util/logger */ "./src/common/util/logger.ts");
-var cheap__fileName__0 = "src\\avprotocol\\m3u8\\parser.ts";
+const cheap__fileName__0 = "src\\avprotocol\\m3u8\\parser.ts";
 /**
  * from https://github.com/kuu/hls-parser/blob/master/parse.ts
  * MIT license
@@ -1119,10 +1510,13 @@ function parseSegment(lines, uri, start, end, mediaSequenceNumber, discontinuity
                     formatVersion: attributes['KEYFORMATVERSIONS']
                 });
             }
+            else {
+                segment.key = null;
+            }
         }
         else if (name === 'EXT-X-MAP') {
             if (segment.parts.length > 0) {
-                common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('EXT-X-MAP must appear before the first EXT-X-PART tag of the Parent Segment.', cheap__fileName__0, 552);
+                common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('EXT-X-MAP must appear before the first EXT-X-PART tag of the Parent Segment.', cheap__fileName__0, 555);
             }
             if (params.compatibleVersion < 5) {
                 params.compatibleVersion = 5;
@@ -1130,7 +1524,8 @@ function parseSegment(lines, uri, start, end, mediaSequenceNumber, discontinuity
             params.hasMap = true;
             segment.map = new _types__WEBPACK_IMPORTED_MODULE_1__.MediaInitializationSection({
                 uri: attributes['URI'],
-                byterange: attributes['BYTERANGE']
+                byterange: attributes['BYTERANGE'],
+                key: segment.key
             });
         }
         else if (name === 'EXT-X-PROGRAM-DATE-TIME') {
@@ -1177,17 +1572,17 @@ function parseSegment(lines, uri, start, end, mediaSequenceNumber, discontinuity
             }));
         }
         else if (name === 'EXT-X-PRELOAD-HINT' && !attributes['TYPE']) {
-            common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('EXT-X-PRELOAD-HINT: TYPE attribute is mandatory', cheap__fileName__0, 609);
+            common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('EXT-X-PRELOAD-HINT: TYPE attribute is mandatory', cheap__fileName__0, 613);
         }
         else if (name === 'EXT-X-PRELOAD-HINT' && attributes['TYPE'] === 'PART' && partHint) {
-            common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('Servers should not add more than one EXT-X-PRELOAD-HINT tag with the same TYPE attribute to a Playlist.', cheap__fileName__0, 612);
+            common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('Servers should not add more than one EXT-X-PRELOAD-HINT tag with the same TYPE attribute to a Playlist.', cheap__fileName__0, 616);
         }
         else if ((name === 'EXT-X-PART' || name === 'EXT-X-PRELOAD-HINT') && !attributes['URI']) {
-            common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('EXT-X-PART / EXT-X-PRELOAD-HINT: URI attribute is mandatory', cheap__fileName__0, 615);
+            common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('EXT-X-PART / EXT-X-PRELOAD-HINT: URI attribute is mandatory', cheap__fileName__0, 619);
         }
         else if (name === 'EXT-X-PRELOAD-HINT' && attributes['TYPE'] === 'MAP') {
             if (mapHint) {
-                common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('Servers should not add more than one EXT-X-PRELOAD-HINT tag with the same TYPE attribute to a Playlist.', cheap__fileName__0, 619);
+                common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('Servers should not add more than one EXT-X-PRELOAD-HINT tag with the same TYPE attribute to a Playlist.', cheap__fileName__0, 623);
             }
             mapHint = true;
             params.hasMap = true;
@@ -1199,7 +1594,7 @@ function parseSegment(lines, uri, start, end, mediaSequenceNumber, discontinuity
         }
         else if (name === 'EXT-X-PART' || (name === 'EXT-X-PRELOAD-HINT' && attributes['TYPE'] === 'PART')) {
             if (name === 'EXT-X-PART' && !attributes['DURATION']) {
-                common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('EXT-X-PART: DURATION attribute is mandatory', cheap__fileName__0, 631);
+                common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('EXT-X-PART: DURATION attribute is mandatory', cheap__fileName__0, 635);
             }
             if (name === 'EXT-X-PRELOAD-HINT') {
                 partHint = true;
@@ -1222,10 +1617,10 @@ function parsePrefetchSegment(lines, uri, start, end, mediaSequenceNumber, disco
     for (let i = start; i <= end; i++) {
         const { name, attributes } = lines[i];
         if (name === 'EXTINF') {
-            common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('A prefetch segment must not be advertised with an EXTINF tag.', cheap__fileName__0, 663);
+            common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('A prefetch segment must not be advertised with an EXTINF tag.', cheap__fileName__0, 667);
         }
         else if (name === 'EXT-X-DISCONTINUITY') {
-            common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('A prefetch segment must not be advertised with an EXT-X-DISCONTINUITY tag.', cheap__fileName__0, 666);
+            common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('A prefetch segment must not be advertised with an EXT-X-DISCONTINUITY tag.', cheap__fileName__0, 670);
         }
         else if (name === 'EXT-X-PREFETCH-DISCONTINUITY') {
             segment.discontinuity = true;
@@ -1243,7 +1638,7 @@ function parsePrefetchSegment(lines, uri, start, end, mediaSequenceNumber, disco
             }
         }
         else if (name === 'EXT-X-MAP') {
-            common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('Prefetch segments must not be advertised with an EXT-X-MAP tag.', cheap__fileName__0, 684);
+            common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('Prefetch segments must not be advertised with an EXT-X-MAP tag.', cheap__fileName__0, 688);
         }
     }
     return segment;
@@ -1274,7 +1669,7 @@ function parseMediaPlaylist(lines, params) {
                 playlist.version = value;
             }
             else {
-                common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('A Playlist file MUST NOT contain more than one EXT-X-VERSION tag.', cheap__fileName__0, 716);
+                common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('A Playlist file MUST NOT contain more than one EXT-X-VERSION tag.', cheap__fileName__0, 720);
             }
         }
         else if (name === 'EXT-X-TARGETDURATION') {
@@ -1282,16 +1677,16 @@ function parseMediaPlaylist(lines, params) {
         }
         else if (name === 'EXT-X-MEDIA-SEQUENCE') {
             if (playlist.segments.length > 0) {
-                common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('The EXT-X-MEDIA-SEQUENCE tag MUST appear before the first Media Segment in the Playlist.', cheap__fileName__0, 724);
+                common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('The EXT-X-MEDIA-SEQUENCE tag MUST appear before the first Media Segment in the Playlist.', cheap__fileName__0, 728);
             }
             playlist.mediaSequenceBase = mediaSequence = value;
         }
         else if (name === 'EXT-X-DISCONTINUITY-SEQUENCE') {
             if (playlist.segments.length > 0) {
-                common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('The EXT-X-DISCONTINUITY-SEQUENCE tag MUST appear before the first Media Segment in the Playlist.', cheap__fileName__0, 730);
+                common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('The EXT-X-DISCONTINUITY-SEQUENCE tag MUST appear before the first Media Segment in the Playlist.', cheap__fileName__0, 734);
             }
             if (discontinuityFound) {
-                common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('The EXT-X-DISCONTINUITY-SEQUENCE tag MUST appear before any EXT-X-DISCONTINUITY tag.', cheap__fileName__0, 733);
+                common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('The EXT-X-DISCONTINUITY-SEQUENCE tag MUST appear before any EXT-X-DISCONTINUITY tag.', cheap__fileName__0, 737);
             }
             playlist.discontinuitySequenceBase = discontinuitySequence = value;
         }
@@ -1309,22 +1704,22 @@ function parseMediaPlaylist(lines, params) {
         }
         else if (name === 'EXT-X-INDEPENDENT-SEGMENTS') {
             if (playlist.independentSegments) {
-                common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('EXT-X-INDEPENDENT-SEGMENTS tag MUST NOT appear more than once in a Playlist', cheap__fileName__0, 751);
+                common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('EXT-X-INDEPENDENT-SEGMENTS tag MUST NOT appear more than once in a Playlist', cheap__fileName__0, 755);
             }
             playlist.independentSegments = true;
         }
         else if (name === 'EXT-X-START') {
             if (playlist.start) {
-                common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('EXT-X-START tag MUST NOT appear more than once in a Playlist', cheap__fileName__0, 757);
+                common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('EXT-X-START tag MUST NOT appear more than once in a Playlist', cheap__fileName__0, 761);
             }
             if (typeof attributes['TIME-OFFSET'] !== 'number') {
-                common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('EXT-X-START: TIME-OFFSET attribute is REQUIRED', cheap__fileName__0, 760);
+                common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('EXT-X-START: TIME-OFFSET attribute is REQUIRED', cheap__fileName__0, 764);
             }
             playlist.start = { offset: attributes['TIME-OFFSET'], precise: attributes['PRECISE'] || false };
         }
         else if (name === 'EXT-X-SERVER-CONTROL') {
             if (!attributes['CAN-BLOCK-RELOAD']) {
-                common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('EXT-X-SERVER-CONTROL: CAN-BLOCK-RELOAD=YES is mandatory for Low-Latency HLS', cheap__fileName__0, 766);
+                common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('EXT-X-SERVER-CONTROL: CAN-BLOCK-RELOAD=YES is mandatory for Low-Latency HLS', cheap__fileName__0, 770);
             }
             playlist.lowLatencyCompatibility = {
                 canBlockReload: attributes['CAN-BLOCK-RELOAD'],
@@ -1335,16 +1730,16 @@ function parseMediaPlaylist(lines, params) {
         }
         else if (name === 'EXT-X-PART-INF') {
             if (!attributes['PART-TARGET']) {
-                common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('EXT-X-PART-INF: PART-TARGET attribute is mandatory', cheap__fileName__0, 777);
+                common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('EXT-X-PART-INF: PART-TARGET attribute is mandatory', cheap__fileName__0, 781);
             }
             playlist.partTargetDuration = attributes['PART-TARGET'];
         }
         else if (name === 'EXT-X-RENDITION-REPORT') {
             if (!attributes['URI']) {
-                common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('EXT-X-RENDITION-REPORT: URI attribute is mandatory', cheap__fileName__0, 783);
+                common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('EXT-X-RENDITION-REPORT: URI attribute is mandatory', cheap__fileName__0, 787);
             }
             if (attributes['URI'].search(/^[a-z]+:/) === 0) {
-                common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('EXT-X-RENDITION-REPORT: URI must be relative to the playlist uri', cheap__fileName__0, 786);
+                common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('EXT-X-RENDITION-REPORT: URI must be relative to the playlist uri', cheap__fileName__0, 790);
             }
             playlist.renditionReports.push(new _types__WEBPACK_IMPORTED_MODULE_1__.RenditionReport({
                 uri: attributes['URI'],
@@ -1354,7 +1749,7 @@ function parseMediaPlaylist(lines, params) {
         }
         else if (name === 'EXT-X-SKIP') {
             if (!attributes['SKIPPED-SEGMENTS']) {
-                common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('EXT-X-SKIP: SKIPPED-SEGMENTS attribute is mandatory', cheap__fileName__0, 796);
+                common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('EXT-X-SKIP: SKIPPED-SEGMENTS attribute is mandatory', cheap__fileName__0, 800);
             }
             if (params.compatibleVersion < 9) {
                 params.compatibleVersion = 9;
@@ -1372,6 +1767,9 @@ function parseMediaPlaylist(lines, params) {
                 if (segment.key) {
                     currentKey = segment.key;
                 }
+                else if (segment.key === null) {
+                    currentKey = undefined;
+                }
                 else {
                     segment.key = currentKey;
                 }
@@ -1383,16 +1781,19 @@ function parseMediaPlaylist(lines, params) {
         else if (typeof line === 'string') {
             // uri
             if (segmentStart === -1) {
-                common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('A URI line is not preceded by any segment tags', cheap__fileName__0, 833);
+                common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('A URI line is not preceded by any segment tags', cheap__fileName__0, 840);
             }
             if (!playlist.targetDuration) {
-                common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('The EXT-X-TARGETDURATION tag is REQUIRED', cheap__fileName__0, 836);
+                common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('The EXT-X-TARGETDURATION tag is REQUIRED', cheap__fileName__0, 843);
             }
             if (prefetchFound) {
-                common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('These segments must appear after all complete segments.', cheap__fileName__0, 839);
+                common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('These segments must appear after all complete segments.', cheap__fileName__0, 846);
             }
             const segment = parseSegment(lines, line, segmentStart, index - 1, mediaSequence++, discontinuitySequence, params);
             if (segment) {
+                if (segment.key === null) {
+                    currentKey = undefined;
+                }
                 [discontinuitySequence, currentKey, currentMap] = addSegment(playlist, segment, discontinuitySequence, currentKey, currentMap);
                 if (!containsParts && segment.parts.length > 0) {
                     containsParts = true;
@@ -1404,12 +1805,14 @@ function parseMediaPlaylist(lines, params) {
     if (segmentStart !== -1) {
         const segment = parseSegment(lines, '', segmentStart, lines.length - 1, mediaSequence++, discontinuitySequence, params);
         if (segment) {
+            if (segment.key === null) {
+                currentKey = undefined;
+            }
             const { parts } = segment;
             if (parts.length > 0 && !playlist.endlist && !parts[parts.length - 1]?.hint) {
-                common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('If the Playlist contains EXT-X-PART tags and does not contain an EXT-X-ENDLIST tag, the Playlist must contain an EXT-X-PRELOAD-HINT tag with a TYPE=PART attribute', cheap__fileName__0, 856);
+                common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('If the Playlist contains EXT-X-PART tags and does not contain an EXT-X-ENDLIST tag, the Playlist must contain an EXT-X-PRELOAD-HINT tag with a TYPE=PART attribute', cheap__fileName__0, 869);
             }
-            // @ts-expect-error TODO check if this is not a bug the third argument should be a discontinuitySequence
-            addSegment(playlist, segment, currentKey, currentMap);
+            addSegment(playlist, segment, discontinuitySequence, currentKey, currentMap);
             if (!containsParts && segment.parts.length > 0) {
                 containsParts = true;
             }
@@ -1443,11 +1846,11 @@ function addSegment(playlist, segment, discontinuitySequence, currentKey, curren
                 byterange.offset = prevSegment.byterange.offset + prevSegment.byterange.length;
             }
             else {
-                common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('If offset of EXT-X-BYTERANGE is not present, a previous Media Segment MUST be a sub-range of the same media resource', cheap__fileName__0, 900);
+                common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('If offset of EXT-X-BYTERANGE is not present, a previous Media Segment MUST be a sub-range of the same media resource', cheap__fileName__0, 912);
             }
         }
         else {
-            common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('If offset of EXT-X-BYTERANGE is not present, a previous Media Segment MUST appear in the Playlist file', cheap__fileName__0, 904);
+            common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('If offset of EXT-X-BYTERANGE is not present, a previous Media Segment MUST appear in the Playlist file', cheap__fileName__0, 916);
         }
     }
     playlist.segments.push(segment);
@@ -1466,13 +1869,13 @@ function checkDateRange(segments) {
         if (dateRange && dateRange.start) {
             hasDateRange = true;
             if (dateRange.endOnNext && (dateRange.end || dateRange.duration)) {
-                common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('An EXT-X-DATERANGE tag with an END-ON-NEXT=YES attribute MUST NOT contain DURATION or END-DATE attributes.', cheap__fileName__0, 924);
+                common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('An EXT-X-DATERANGE tag with an END-ON-NEXT=YES attribute MUST NOT contain DURATION or END-DATE attributes.', cheap__fileName__0, 936);
             }
             const start = dateRange.start.getTime();
             const duration = dateRange.duration || 0;
             if (dateRange.end && dateRange.duration) {
                 if ((start + duration * 1000) !== dateRange.end.getTime()) {
-                    common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('END-DATE MUST be equal to the value of the START-DATE attribute plus the value of the DURATION', cheap__fileName__0, 930);
+                    common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('END-DATE MUST be equal to the value of the START-DATE attribute plus the value of the DURATION', cheap__fileName__0, 942);
                 }
             }
             if (dateRange.endOnNext) {
@@ -1484,7 +1887,7 @@ function checkDateRange(segments) {
             if (range) {
                 for (const entry of range) {
                     if ((entry.start <= start && entry.end > start) || (entry.start >= start && entry.start < end)) {
-                        common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('DATERANGE tags with the same CLASS should not overlap', cheap__fileName__0, 942);
+                        common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('DATERANGE tags with the same CLASS should not overlap', cheap__fileName__0, 954);
                     }
                 }
                 range.push({ start, end });
@@ -1495,41 +1898,41 @@ function checkDateRange(segments) {
         }
     }
     if (hasDateRange && !hasProgramDateTime) {
-        common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('If a Playlist contains an EXT-X-DATERANGE tag, it MUST also contain at least one EXT-X-PROGRAM-DATE-TIME tag.', cheap__fileName__0, 953);
+        common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('If a Playlist contains an EXT-X-DATERANGE tag, it MUST also contain at least one EXT-X-PROGRAM-DATE-TIME tag.', cheap__fileName__0, 965);
     }
 }
 function checkLowLatencyCompatibility({ lowLatencyCompatibility, targetDuration, partTargetDuration, segments, renditionReports }, containsParts) {
     const { canSkipUntil, holdBack, partHoldBack } = lowLatencyCompatibility;
     if (canSkipUntil < targetDuration * 6) {
-        common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('The Skip Boundary must be at least six times the EXT-X-TARGETDURATION.', cheap__fileName__0, 960);
+        common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('The Skip Boundary must be at least six times the EXT-X-TARGETDURATION.', cheap__fileName__0, 972);
     }
     // Its value is a floating-point number of seconds and .
     if (holdBack < targetDuration * 3) {
-        common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('HOLD-BACK must be at least three times the EXT-X-TARGETDURATION.', cheap__fileName__0, 964);
+        common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('HOLD-BACK must be at least three times the EXT-X-TARGETDURATION.', cheap__fileName__0, 976);
     }
     if (containsParts) {
         if (partTargetDuration === undefined) {
-            common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('EXT-X-PART-INF is required if a Playlist contains one or more EXT-X-PART tags', cheap__fileName__0, 968);
+            common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('EXT-X-PART-INF is required if a Playlist contains one or more EXT-X-PART tags', cheap__fileName__0, 980);
         }
         if (partHoldBack === undefined) {
-            common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('EXT-X-PART: PART-HOLD-BACK attribute is mandatory', cheap__fileName__0, 971);
+            common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('EXT-X-PART: PART-HOLD-BACK attribute is mandatory', cheap__fileName__0, 983);
         }
         if (partHoldBack < partTargetDuration) {
-            common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('PART-HOLD-BACK must be at least PART-TARGET', cheap__fileName__0, 974);
+            common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('PART-HOLD-BACK must be at least PART-TARGET', cheap__fileName__0, 986);
         }
         for (const [segmentIndex, { parts }] of segments.entries()) {
-            if (parts.length > 0 && segmentIndex < segments.length - 3) {
-                common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('Remove EXT-X-PART tags from the Playlist after they are greater than three target durations from the end of the Playlist.', cheap__fileName__0, 978);
-            }
+            // if (parts.length > 0 && segmentIndex < segments.length - 3) {
+            //   logger.fatal('Remove EXT-X-PART tags from the Playlist after they are greater than three target durations from the end of the Playlist.')
+            // }
             for (const [partIndex, { duration }] of parts.entries()) {
                 if (duration === undefined) {
                     continue;
                 }
                 if (duration > partTargetDuration) {
-                    common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('PART-TARGET is the maximum duration of any Partial Segment', cheap__fileName__0, 985);
+                    common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('PART-TARGET is the maximum duration of any Partial Segment', cheap__fileName__0, 997);
                 }
                 if (partIndex < parts.length - 1 && duration < partTargetDuration * 0.85) {
-                    common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('All Partial Segments except the last part of a segment must have a duration of at least 85% of PART-TARGET', cheap__fileName__0, 988);
+                    common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('All Partial Segments except the last part of a segment must have a duration of at least 85% of PART-TARGET', cheap__fileName__0, 1000);
                 }
             }
         }
@@ -1551,7 +1954,7 @@ function CHECKTAGCATEGORY(category, params) {
             return;
         }
         if (params.isMasterPlaylist) {
-            common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('The file contains both media and master playlist tags.', cheap__fileName__0, 1011);
+            common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('The file contains both media and master playlist tags.', cheap__fileName__0, 1023);
         }
         return;
     }
@@ -1561,7 +1964,7 @@ function CHECKTAGCATEGORY(category, params) {
             return;
         }
         if (params.isMasterPlaylist === false) {
-            common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('The file contains both media and master playlist tags.', cheap__fileName__0, 1021);
+            common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('The file contains both media and master playlist tags.', cheap__fileName__0, 1033);
         }
     }
 }
@@ -1574,7 +1977,7 @@ function parseTag(line, params) {
     }
     if (category === 'MediaPlaylist' && name !== 'EXT-X-RENDITION-REPORT' && name !== 'EXT-X-PREFETCH') {
         if (params.hash[name]) {
-            common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('There MUST NOT be more than one Media Playlist tag of each type in any Media Playlist', cheap__fileName__0, 1042);
+            common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('There MUST NOT be more than one Media Playlist tag of each type in any Media Playlist', cheap__fileName__0, 1054);
         }
         params.hash[name] = true;
     }
@@ -1603,7 +2006,7 @@ function lexicalParse(text, params) {
         lines.push(line);
     }
     if (lines.length === 0 || lines[0].name !== 'EXTM3U') {
-        common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('The EXTM3U tag MUST be the first line.', cheap__fileName__0, 1074);
+        common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal('The EXTM3U tag MUST be the first line.', cheap__fileName__0, 1086);
     }
     return lines;
 }
@@ -1620,7 +2023,7 @@ function semanticParse(lines, params) {
     }
     if (params.compatibleVersion > 1) {
         if (!playlist.version || playlist.version < params.compatibleVersion) {
-            common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal(`EXT-X-VERSION needs to be ${params.compatibleVersion} or higher.`, cheap__fileName__0, 1092);
+            common_util_logger__WEBPACK_IMPORTED_MODULE_2__.fatal(`EXT-X-VERSION needs to be ${params.compatibleVersion} or higher.`, cheap__fileName__0, 1104);
         }
     }
     return playlist;
@@ -1793,13 +2196,15 @@ class MediaInitializationSection {
     uri;
     mimeType;
     byterange;
+    key;
     constructor({ hint = false, 
     // required
-    uri, mimeType, byterange }) {
+    uri, mimeType, byterange, key }) {
         this.hint = hint;
         this.uri = uri;
         this.mimeType = mimeType;
         this.byterange = byterange;
+        this.key = key;
     }
 }
 class DateRange {
@@ -2124,6 +2529,330 @@ function camelify(str) {
     return array.join('');
 }
 
+
+
+/***/ }),
+
+/***/ "./src/avutil/stringEnum.ts":
+/*!**********************************!*\
+  !*** ./src/avutil/stringEnum.ts ***!
+  \**********************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   AudioCodecString2CodecId: () => (/* binding */ AudioCodecString2CodecId),
+/* harmony export */   CodecId2MimeType: () => (/* binding */ CodecId2MimeType),
+/* harmony export */   Ext2Format: () => (/* binding */ Ext2Format),
+/* harmony export */   Ext2IOLoader: () => (/* binding */ Ext2IOLoader),
+/* harmony export */   Format2AVFormat: () => (/* binding */ Format2AVFormat),
+/* harmony export */   PixfmtString2AVPixelFormat: () => (/* binding */ PixfmtString2AVPixelFormat),
+/* harmony export */   SampleFmtString2SampleFormat: () => (/* binding */ SampleFmtString2SampleFormat),
+/* harmony export */   SubtitleCodecString2CodecId: () => (/* binding */ SubtitleCodecString2CodecId),
+/* harmony export */   VideoCodecString2CodecId: () => (/* binding */ VideoCodecString2CodecId),
+/* harmony export */   colorPrimaries2AVColorPrimaries: () => (/* binding */ colorPrimaries2AVColorPrimaries),
+/* harmony export */   colorRange2AVColorRange: () => (/* binding */ colorRange2AVColorRange),
+/* harmony export */   colorSpace2AVColorSpace: () => (/* binding */ colorSpace2AVColorSpace),
+/* harmony export */   colorTrc2AVColorTransferCharacteristic: () => (/* binding */ colorTrc2AVColorTransferCharacteristic),
+/* harmony export */   disposition2AVDisposition: () => (/* binding */ disposition2AVDisposition),
+/* harmony export */   layoutName2AVChannelLayout: () => (/* binding */ layoutName2AVChannelLayout),
+/* harmony export */   mediaType2AVMediaType: () => (/* binding */ mediaType2AVMediaType)
+/* harmony export */ });
+const CodecId2MimeType = {
+    [86017 /* AVCodecID.AV_CODEC_ID_MP3 */]: 'mp3',
+    [86018 /* AVCodecID.AV_CODEC_ID_AAC */]: 'mp4a.40',
+    [86021 /* AVCodecID.AV_CODEC_ID_VORBIS */]: 'vorbis',
+    [86028 /* AVCodecID.AV_CODEC_ID_FLAC */]: 'flac',
+    [86076 /* AVCodecID.AV_CODEC_ID_OPUS */]: 'opus',
+    [65542 /* AVCodecID.AV_CODEC_ID_PCM_MULAW */]: 'ulaw',
+    [65543 /* AVCodecID.AV_CODEC_ID_PCM_ALAW */]: 'alaw',
+    [86019 /* AVCodecID.AV_CODEC_ID_AC3 */]: 'ac-3',
+    [86056 /* AVCodecID.AV_CODEC_ID_EAC3 */]: 'ec-3',
+    [86020 /* AVCodecID.AV_CODEC_ID_DTS */]: 'dtsc',
+    [225 /* AVCodecID.AV_CODEC_ID_AV1 */]: 'av01',
+    [27 /* AVCodecID.AV_CODEC_ID_H264 */]: 'avc1',
+    [173 /* AVCodecID.AV_CODEC_ID_HEVC */]: 'hev1',
+    [196 /* AVCodecID.AV_CODEC_ID_VVC */]: 'vvc1',
+    [139 /* AVCodecID.AV_CODEC_ID_VP8 */]: 'vp8',
+    [167 /* AVCodecID.AV_CODEC_ID_VP9 */]: 'vp09',
+    [12 /* AVCodecID.AV_CODEC_ID_MPEG4 */]: 'mp4v'
+};
+const Ext2Format = {
+    'flv': 0 /* AVFormat.FLV */,
+    'mp4': 1 /* AVFormat.MOV */,
+    'm4s': 1 /* AVFormat.MOV */,
+    'mov': 1 /* AVFormat.MOV */,
+    'ts': 2 /* AVFormat.MPEGTS */,
+    'mts': 2 /* AVFormat.MPEGTS */,
+    'm2ts': 2 /* AVFormat.MPEGTS */,
+    'ivf': 5 /* AVFormat.IVF */,
+    'opus': 4 /* AVFormat.OGG */,
+    'oggs': 4 /* AVFormat.OGG */,
+    'ogg': 4 /* AVFormat.OGG */,
+    'm3u8': 2 /* AVFormat.MPEGTS */,
+    'm3u': 2 /* AVFormat.MPEGTS */,
+    'mpd': 1 /* AVFormat.MOV */,
+    'mp3': 14 /* AVFormat.MP3 */,
+    'mkv': 8 /* AVFormat.MATROSKA */,
+    'mka': 8 /* AVFormat.MATROSKA */,
+    'webm': 9 /* AVFormat.WEBM */,
+    'aac': 15 /* AVFormat.AAC */,
+    'flac': 17 /* AVFormat.FLAC */,
+    'wav': 16 /* AVFormat.WAV */,
+    'srt': 19 /* AVFormat.SUBRIP */,
+    'vtt': 18 /* AVFormat.WEBVTT */,
+    'ssa': 20 /* AVFormat.ASS */,
+    'ass': 20 /* AVFormat.ASS */,
+    'xml': 21 /* AVFormat.TTML */,
+    'ttml': 21 /* AVFormat.TTML */,
+    'h264': 11 /* AVFormat.H264 */,
+    '264': 11 /* AVFormat.H264 */,
+    'avc': 11 /* AVFormat.H264 */,
+    'h265': 12 /* AVFormat.HEVC */,
+    '265': 12 /* AVFormat.HEVC */,
+    'hevc': 12 /* AVFormat.HEVC */,
+    'h266': 13 /* AVFormat.VVC */,
+    '266': 13 /* AVFormat.VVC */,
+    'vvc': 13 /* AVFormat.VVC */,
+    'mpeg': 3 /* AVFormat.MPEGPS */,
+    'mpg': 3 /* AVFormat.MPEGPS */,
+    'rtsp': 6 /* AVFormat.RTSP */,
+    'rtmp': 7 /* AVFormat.RTMP */,
+    'avi': 10 /* AVFormat.AVI */
+};
+const Ext2IOLoader = {
+    'm3u8': 4 /* IOType.HLS */,
+    'm3u': 4 /* IOType.HLS */,
+    'mpd': 5 /* IOType.DASH */
+};
+const VideoCodecString2CodecId = {
+    'copy': 0 /* AVCodecID.AV_CODEC_ID_NONE */,
+    'h264': 27 /* AVCodecID.AV_CODEC_ID_H264 */,
+    'h261': 3 /* AVCodecID.AV_CODEC_ID_H261 */,
+    'h263': 4 /* AVCodecID.AV_CODEC_ID_H263 */,
+    'h263i': 20 /* AVCodecID.AV_CODEC_ID_H263I */,
+    'h263p': 19 /* AVCodecID.AV_CODEC_ID_H263P */,
+    'mjpeg': 7 /* AVCodecID.AV_CODEC_ID_MJPEG */,
+    'wmv1': 17 /* AVCodecID.AV_CODEC_ID_WMV1 */,
+    'wmv2': 18 /* AVCodecID.AV_CODEC_ID_WMV2 */,
+    'wmv3': 71 /* AVCodecID.AV_CODEC_ID_WMV3 */,
+    'avc': 27 /* AVCodecID.AV_CODEC_ID_H264 */,
+    'hevc': 173 /* AVCodecID.AV_CODEC_ID_HEVC */,
+    'h265': 173 /* AVCodecID.AV_CODEC_ID_HEVC */,
+    'vvc': 196 /* AVCodecID.AV_CODEC_ID_VVC */,
+    'h266': 196 /* AVCodecID.AV_CODEC_ID_VVC */,
+    'av1': 225 /* AVCodecID.AV_CODEC_ID_AV1 */,
+    'vp9': 167 /* AVCodecID.AV_CODEC_ID_VP9 */,
+    'vp8': 139 /* AVCodecID.AV_CODEC_ID_VP8 */,
+    'mpeg4': 12 /* AVCodecID.AV_CODEC_ID_MPEG4 */,
+    'theora': 30 /* AVCodecID.AV_CODEC_ID_THEORA */,
+    'mpeg2video': 2 /* AVCodecID.AV_CODEC_ID_MPEG2VIDEO */,
+    'rv10': 5 /* AVCodecID.AV_CODEC_ID_RV10 */,
+    'rv20': 6 /* AVCodecID.AV_CODEC_ID_RV20 */,
+    'rv30': 68 /* AVCodecID.AV_CODEC_ID_RV30 */,
+    'rv40': 69 /* AVCodecID.AV_CODEC_ID_RV40 */
+};
+const AudioCodecString2CodecId = {
+    'copy': 0 /* AVCodecID.AV_CODEC_ID_NONE */,
+    'aac': 86018 /* AVCodecID.AV_CODEC_ID_AAC */,
+    'ac3': 86019 /* AVCodecID.AV_CODEC_ID_AC3 */,
+    'eac3': 86056 /* AVCodecID.AV_CODEC_ID_EAC3 */,
+    'dts': 86020 /* AVCodecID.AV_CODEC_ID_DTS */,
+    'mp3': 86017 /* AVCodecID.AV_CODEC_ID_MP3 */,
+    'opus': 86076 /* AVCodecID.AV_CODEC_ID_OPUS */,
+    'flac': 86028 /* AVCodecID.AV_CODEC_ID_FLAC */,
+    'speex': 86051 /* AVCodecID.AV_CODEC_ID_SPEEX */,
+    'vorbis': 86021 /* AVCodecID.AV_CODEC_ID_VORBIS */,
+    'pcm_alaw': 65543 /* AVCodecID.AV_CODEC_ID_PCM_ALAW */,
+    'pcm_mulaw': 65542 /* AVCodecID.AV_CODEC_ID_PCM_MULAW */,
+    'wmav1': 86023 /* AVCodecID.AV_CODEC_ID_WMAV1 */,
+    'wmav2': 86024 /* AVCodecID.AV_CODEC_ID_WMAV2 */,
+    'cook': 86036 /* AVCodecID.AV_CODEC_ID_COOK */,
+    'sipr': 86057 /* AVCodecID.AV_CODEC_ID_SIPR */,
+    'ralf': 86073 /* AVCodecID.AV_CODEC_ID_RALF */
+};
+const SubtitleCodecString2CodecId = {
+    'webvtt': 94226 /* AVCodecID.AV_CODEC_ID_WEBVTT */,
+    'subrip': 94225 /* AVCodecID.AV_CODEC_ID_SUBRIP */,
+    'ass': 94230 /* AVCodecID.AV_CODEC_ID_ASS */,
+    'ttml': 94232 /* AVCodecID.AV_CODEC_ID_TTML */,
+    'mov_text': 94213 /* AVCodecID.AV_CODEC_ID_MOV_TEXT */,
+    'hdmv_pgs': 94214 /* AVCodecID.AV_CODEC_ID_HDMV_PGS_SUBTITLE */,
+    'hdmv_text': 94231 /* AVCodecID.AV_CODEC_ID_HDMV_TEXT_SUBTITLE */,
+    'dvd': 94208 /* AVCodecID.AV_CODEC_ID_DVD_SUBTITLE */,
+    'dvb': 94209 /* AVCodecID.AV_CODEC_ID_DVB_SUBTITLE */,
+    'eia_608': 94218 /* AVCodecID.AV_CODEC_ID_EIA_608 */
+};
+const PixfmtString2AVPixelFormat = {
+    'yuv420p': 0 /* AVPixelFormat.AV_PIX_FMT_YUV420P */,
+    'yuv422p': 4 /* AVPixelFormat.AV_PIX_FMT_YUV422P */,
+    'yuv444p': 5 /* AVPixelFormat.AV_PIX_FMT_YUV444P */,
+    'yuva420p': 33 /* AVPixelFormat.AV_PIX_FMT_YUVA420P */,
+    'yuva422p': 78 /* AVPixelFormat.AV_PIX_FMT_YUVA422P */,
+    'yuva444p': 79 /* AVPixelFormat.AV_PIX_FMT_YUVA444P */,
+    'yuvj420p': 12 /* AVPixelFormat.AV_PIX_FMT_YUVJ420P */,
+    'yuvj422p': 13 /* AVPixelFormat.AV_PIX_FMT_YUVJ422P */,
+    'yuvj444p': 14 /* AVPixelFormat.AV_PIX_FMT_YUVJ444P */,
+    'yuv420p10le': 62 /* AVPixelFormat.AV_PIX_FMT_YUV420P10LE */,
+    'yuv422p10le': 64 /* AVPixelFormat.AV_PIX_FMT_YUV422P10LE */,
+    'yuv444p10le': 68 /* AVPixelFormat.AV_PIX_FMT_YUV444P10LE */,
+    'yuva420p10le': 87 /* AVPixelFormat.AV_PIX_FMT_YUVA420P10LE */,
+    'yuva422p10le': 89 /* AVPixelFormat.AV_PIX_FMT_YUVA422P10LE */,
+    'yuva444p10le': 91 /* AVPixelFormat.AV_PIX_FMT_YUVA444P10LE */,
+    'yuv420p10be': 61 /* AVPixelFormat.AV_PIX_FMT_YUV420P10BE */,
+    'yuv422p10be': 63 /* AVPixelFormat.AV_PIX_FMT_YUV422P10BE */,
+    'yuv444p10be': 67 /* AVPixelFormat.AV_PIX_FMT_YUV444P10BE */,
+    'yuva420p10be': 86 /* AVPixelFormat.AV_PIX_FMT_YUVA420P10BE */,
+    'yuva422p10be': 88 /* AVPixelFormat.AV_PIX_FMT_YUVA422P10BE */,
+    'yuva444p10be': 90 /* AVPixelFormat.AV_PIX_FMT_YUVA444P10BE */,
+};
+const SampleFmtString2SampleFormat = {
+    'u8': 0 /* AVSampleFormat.AV_SAMPLE_FMT_U8 */,
+    'u8-planar': 5 /* AVSampleFormat.AV_SAMPLE_FMT_U8P */,
+    's16': 1 /* AVSampleFormat.AV_SAMPLE_FMT_S16 */,
+    's16-planar': 6 /* AVSampleFormat.AV_SAMPLE_FMT_S16P */,
+    's32': 2 /* AVSampleFormat.AV_SAMPLE_FMT_S32 */,
+    's32-planar': 7 /* AVSampleFormat.AV_SAMPLE_FMT_S32P */,
+    's64': 10 /* AVSampleFormat.AV_SAMPLE_FMT_S64 */,
+    's64-planar': 11 /* AVSampleFormat.AV_SAMPLE_FMT_S64P */,
+    'float': 3 /* AVSampleFormat.AV_SAMPLE_FMT_FLT */,
+    'float-planar': 8 /* AVSampleFormat.AV_SAMPLE_FMT_FLTP */,
+    'double': 4 /* AVSampleFormat.AV_SAMPLE_FMT_DBL */,
+    'double-planar': 9 /* AVSampleFormat.AV_SAMPLE_FMT_DBLP */,
+};
+const Format2AVFormat = {
+    'flv': 0 /* AVFormat.FLV */,
+    'mp4': 1 /* AVFormat.MOV */,
+    'mov': 1 /* AVFormat.MOV */,
+    'ts': 2 /* AVFormat.MPEGTS */,
+    'mpegts': 2 /* AVFormat.MPEGTS */,
+    'mpeg': 3 /* AVFormat.MPEGPS */,
+    'ivf': 5 /* AVFormat.IVF */,
+    'ogg': 4 /* AVFormat.OGG */,
+    'opus': 4 /* AVFormat.OGG */,
+    'm3u8': 2 /* AVFormat.MPEGTS */,
+    'm3u': 2 /* AVFormat.MPEGTS */,
+    'mpd': 1 /* AVFormat.MOV */,
+    'mp3': 14 /* AVFormat.MP3 */,
+    'mkv': 8 /* AVFormat.MATROSKA */,
+    'matroska': 8 /* AVFormat.MATROSKA */,
+    'mka': 8 /* AVFormat.MATROSKA */,
+    'webm': 9 /* AVFormat.WEBM */,
+    'aac': 15 /* AVFormat.AAC */,
+    'flac': 17 /* AVFormat.FLAC */,
+    'wav': 16 /* AVFormat.WAV */,
+    'raw_h264': 11 /* AVFormat.H264 */,
+    'raw_h265': 12 /* AVFormat.HEVC */,
+    'raw_vvc': 13 /* AVFormat.VVC */,
+    'rtsp': 6 /* AVFormat.RTSP */,
+    'rtmp': 7 /* AVFormat.RTMP */,
+    'avi': 10 /* AVFormat.AVI */
+};
+const colorRange2AVColorRange = {
+    'tv': 1 /* AVColorRange.AVCOL_RANGE_MPEG */,
+    'pc': 2 /* AVColorRange.AVCOL_RANGE_JPEG */
+};
+const colorSpace2AVColorSpace = {
+    'bt709': 1 /* AVColorSpace.AVCOL_SPC_BT709 */,
+    'fcc': 4 /* AVColorSpace.AVCOL_SPC_FCC */,
+    'bt470bg': 5 /* AVColorSpace.AVCOL_SPC_BT470BG */,
+    'smpte170m': 6 /* AVColorSpace.AVCOL_SPC_SMPTE170M */,
+    'smpte240m': 7 /* AVColorSpace.AVCOL_SPC_SMPTE240M */,
+    'ycgco': 8 /* AVColorSpace.AVCOL_SPC_YCGCO */,
+    'gbr': 0 /* AVColorSpace.AVCOL_SPC_RGB */,
+    'bt2020nc': 9 /* AVColorSpace.AVCOL_SPC_BT2020_NCL */
+};
+const colorPrimaries2AVColorPrimaries = {
+    'bt709': 1 /* AVColorPrimaries.AVCOL_PRI_BT709 */,
+    'bt470m': 4 /* AVColorPrimaries.AVCOL_PRI_BT470M */,
+    'bt470bg': 5 /* AVColorPrimaries.AVCOL_PRI_BT470BG */,
+    'smpte170m': 6 /* AVColorPrimaries.AVCOL_PRI_SMPTE170M */,
+    'smpte240m': 7 /* AVColorPrimaries.AVCOL_PRI_SMPTE240M */,
+    'smpte428': 10 /* AVColorPrimaries.AVCOL_PRI_SMPTE428 */,
+    'film': 8 /* AVColorPrimaries.AVCOL_PRI_FILM */,
+    'smpte431': 11 /* AVColorPrimaries.AVCOL_PRI_SMPTE431 */,
+    'smpte432': 12 /* AVColorPrimaries.AVCOL_PRI_SMPTE432 */,
+    'bt2020': 9 /* AVColorPrimaries.AVCOL_PRI_BT2020 */,
+    'jedec-p22': 22 /* AVColorPrimaries.AVCOL_PRI_JEDEC_P22 */,
+    'ebu3213': 22 /* AVColorPrimaries.AVCOL_PRI_EBU3213 */
+};
+const colorTrc2AVColorTransferCharacteristic = {
+    'bt709': 1 /* AVColorTransferCharacteristic.AVCOL_TRC_BT709 */,
+    'gamma22': 4 /* AVColorTransferCharacteristic.AVCOL_TRC_GAMMA22 */,
+    'gamma28': 5 /* AVColorTransferCharacteristic.AVCOL_TRC_GAMMA28 */,
+    'smpte170m': 6 /* AVColorTransferCharacteristic.AVCOL_TRC_SMPTE170M */,
+    'smpte240m': 7 /* AVColorTransferCharacteristic.AVCOL_TRC_SMPTE240M */,
+    'srgb': 13 /* AVColorTransferCharacteristic.AVCOL_TRC_IEC61966_2_1 */,
+    'xvycc': 11 /* AVColorTransferCharacteristic.AVCOL_TRC_IEC61966_2_4 */,
+    'bt2020-10': 14 /* AVColorTransferCharacteristic.AVCOL_TRC_BT2020_10 */,
+    'bt2020-12': 15 /* AVColorTransferCharacteristic.AVCOL_TRC_BT2020_12 */,
+    'smpte2084': 16 /* AVColorTransferCharacteristic.AVCOL_TRC_SMPTEST2084 */,
+    'arib-std-b67': 18 /* AVColorTransferCharacteristic.AVCOL_TRC_ARIB_STD_B67 */
+};
+const mediaType2AVMediaType = {
+    'Audio': 1 /* AVMediaType.AVMEDIA_TYPE_AUDIO */,
+    'Video': 0 /* AVMediaType.AVMEDIA_TYPE_VIDEO */,
+    'Subtitle': 3 /* AVMediaType.AVMEDIA_TYPE_SUBTITLE */,
+    'Attachment': 4 /* AVMediaType.AVMEDIA_TYPE_ATTACHMENT */,
+    'Data': 2 /* AVMediaType.AVMEDIA_TYPE_DATA */
+};
+const disposition2AVDisposition = {
+    'default': 1 /* AVDisposition.DEFAULT */,
+    'dub': 2 /* AVDisposition.DUB */,
+    'original': 4 /* AVDisposition.ORIGINAL */,
+    'comment': 8 /* AVDisposition.COMMENT */,
+    'lyrics': 16 /* AVDisposition.LYRICS */,
+    'karaoke': 32 /* AVDisposition.KARAOKE */,
+    'forced': 64 /* AVDisposition.FORCED */,
+    'hearing impaired': 128 /* AVDisposition.HEARING_IMPAIRED */,
+    'visual impaired': 256 /* AVDisposition.VISUAL_IMPAIRED */,
+    'clean effects': 512 /* AVDisposition.CLEAN_EFFECTS */,
+    'attached pic': 1024 /* AVDisposition.ATTACHED_PIC */,
+    'timed thumbnails': 2048 /* AVDisposition.TIMED_THUMBNAILS */,
+    'captions': 65536 /* AVDisposition.CAPTIONS */,
+    'descriptions': 131072 /* AVDisposition.DESCRIPTIONS */,
+    'metadata': 262144 /* AVDisposition.METADATA */,
+    'dependent': 524288 /* AVDisposition.DEPENDENT */,
+    'still image': 1048576 /* AVDisposition.STILL_IMAGE */
+};
+const layoutName2AVChannelLayout = {
+    'mono': 4 /* AVChannelLayout.AV_CHANNEL_LAYOUT_MONO */,
+    'stereo': 3 /* AVChannelLayout.AV_CHANNEL_LAYOUT_STEREO */,
+    '2.1': 11 /* AVChannelLayout.AV_CHANNEL_LAYOUT_2POINT1 */,
+    '3.0': 7 /* AVChannelLayout.AV_CHANNEL_LAYOUT_SURROUND */,
+    '3.0(back)': 259 /* AVChannelLayout.AV_CHANNEL_LAYOUT_2_1 */,
+    '4.0': 263 /* AVChannelLayout.AV_CHANNEL_LAYOUT_4POINT0 */,
+    'quad': 51 /* AVChannelLayout.AV_CHANNEL_LAYOUT_QUAD */,
+    'quad(side)': 1539 /* AVChannelLayout.AV_CHANNEL_LAYOUT_2_2 */,
+    '3.1': 15 /* AVChannelLayout.AV_CHANNEL_LAYOUT_3POINT1 */,
+    '5.0': 55 /* AVChannelLayout.AV_CHANNEL_LAYOUT_5POINT0_BACK */,
+    '5.0(side)': 1543 /* AVChannelLayout.AV_CHANNEL_LAYOUT_5POINT0 */,
+    '4.1': 271 /* AVChannelLayout.AV_CHANNEL_LAYOUT_4POINT1 */,
+    '5.1': 63 /* AVChannelLayout.AV_CHANNEL_LAYOUT_5POINT1_BACK */,
+    '5.1(side)': 1551 /* AVChannelLayout.AV_CHANNEL_LAYOUT_5POINT1 */,
+    '6.0': 1799 /* AVChannelLayout.AV_CHANNEL_LAYOUT_6POINT0 */,
+    '6.0(front)': 1731 /* AVChannelLayout.AV_CHANNEL_LAYOUT_6POINT0_FRONT */,
+    '3.1.2': 20495 /* AVChannelLayout.AV_CHANNEL_LAYOUT_3POINT1POINT2 */,
+    'hexagonal': 311 /* AVChannelLayout.AV_CHANNEL_LAYOUT_HEXAGONAL */,
+    '6.1': 1807 /* AVChannelLayout.AV_CHANNEL_LAYOUT_6POINT1 */,
+    '6.1(back)': 319 /* AVChannelLayout.AV_CHANNEL_LAYOUT_6POINT1_BACK */,
+    '6.1(front)': 1739 /* AVChannelLayout.AV_CHANNEL_LAYOUT_6POINT1_FRONT */,
+    '7.0': 1591 /* AVChannelLayout.AV_CHANNEL_LAYOUT_7POINT0 */,
+    '7.0(front)': 1735 /* AVChannelLayout.AV_CHANNEL_LAYOUT_7POINT0_FRONT */,
+    '7.1': 1599 /* AVChannelLayout.AV_CHANNEL_LAYOUT_7POINT1 */,
+    '7.1(wide)': 255 /* AVChannelLayout.AV_CHANNEL_LAYOUT_7POINT1_WIDE_BACK */,
+    '7.1(wide-side)': 1743 /* AVChannelLayout.AV_CHANNEL_LAYOUT_7POINT1_WIDE */,
+    '5.1.2': 20543 /* AVChannelLayout.AV_CHANNEL_LAYOUT_5POINT1POINT2_BACK */,
+    'octagonal': 1847 /* AVChannelLayout.AV_CHANNEL_LAYOUT_OCTAGONAL */,
+    'cube': 184371 /* AVChannelLayout.AV_CHANNEL_LAYOUT_CUBE */,
+    '5.1.4': 184383 /* AVChannelLayout.AV_CHANNEL_LAYOUT_5POINT1POINT4_BACK */,
+    '7.1.2': 22079 /* AVChannelLayout.AV_CHANNEL_LAYOUT_7POINT1POINT2 */,
+    '7.1.4': 185919 /* AVChannelLayout.AV_CHANNEL_LAYOUT_7POINT1POINT4_BACK */,
+    '7.2.3': 34359825983 /* AVChannelLayout.AV_CHANNEL_LAYOUT_7POINT2POINT3 */,
+    '9.1.4': 186111 /* AVChannelLayout.AV_CHANNEL_LAYOUT_9POINT1POINT4_BACK */,
+    'hexadecagonal': 6442710839 /* AVChannelLayout.AV_CHANNEL_LAYOUT_HEXADECAGONAL */,
+    'downmix': 1610612736 /* AVChannelLayout.AV_CHANNEL_LAYOUT_STEREO_DOWNMIX */,
+    '22.2': 2164663779327 /* AVChannelLayout.AV_CHANNEL_LAYOUT_22POINT2 */
+};
 
 
 /***/ }),
@@ -2599,13 +3328,27 @@ function stringifyQuery(query, separator = '&') {
  * @param url 如果不传，使用当前地址
  */
 function parse(url) {
+    const source = url;
     const key = ['source', 'protocol', 'authority', 'userInfo', 'user', 'password', 'host', 'port', 'relative', 'path', 'directory', 'file', 'query', 'anchor'];
-    const parser = /^(?:(?![^:@]+:[^:@\/]*@)([^:\/?#.]+):)?(?:\/\/)?((?:(([^:@]*)(?::([^:@]*))?)?@)?([^:\/?#]*)(?::(\d*))?)(((\/(?:[^?#](?![^?#\/]*\.[^?#\/.]+(?:[?#]|$)))*\/?)?([^?#\/]*))(?:\?([^#]*))?(?:#(.*))?)/;
+    const parser = /^(?:(?![^:@\/]+:[^:@\/]*@)([^:\/?#.]+):)?(?:\/\/)?((?:(([^:@\/]*)(?::([^:@\/]*))?)?@)?([^:\/?#]*)(?::(\d*))?)(((\/(?:[^?#](?![^?#\/]*\.[^?#\/.]+(?:[?#]|$)))*\/?)?([^?#\/]*))(?:\?([^#]*))?(?:#(.*))?)/;
+    const ipv6Reg = /:\/\/([^\/@]*@?)\[(\S+)\]/;
+    let ipv6Host = '';
+    if (ipv6Reg.test(url)) {
+        url = url.replace(ipv6Reg, (s0, s1, s2) => {
+            ipv6Host = s2;
+            return `://${s1 || ''}a.b`;
+        });
+    }
     const result = {};
     const m = parser.exec(url);
     let i = 14;
     while (i--) {
         result[key[i]] = m[i] ?? '';
+    }
+    if (ipv6Host) {
+        result.host = ipv6Host;
+        result.source = source;
+        result.authority = ipv6Host + (result.port ? (':' + result.port) : '');
     }
     return {
         protocol: result.protocol,

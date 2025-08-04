@@ -70,11 +70,9 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var avutil_constant__WEBPACK_IMPORTED_MODULE_14__ = __webpack_require__(/*! avutil/constant */ "./src/avutil/constant.ts");
 /* harmony import */ var _function_seekInBytes__WEBPACK_IMPORTED_MODULE_15__ = __webpack_require__(/*! ../function/seekInBytes */ "./src/avformat/function/seekInBytes.ts");
 /* harmony import */ var avutil_util_rational__WEBPACK_IMPORTED_MODULE_16__ = __webpack_require__(/*! avutil/util/rational */ "./src/avutil/util/rational.ts");
-/* harmony import */ var common_util_array__WEBPACK_IMPORTED_MODULE_17__ = __webpack_require__(/*! common/util/array */ "./src/common/util/array.ts");
-/* harmony import */ var cheap_std_buffer_SafeUint8Array__WEBPACK_IMPORTED_MODULE_18__ = __webpack_require__(/*! cheap/std/buffer/SafeUint8Array */ "./src/cheap/std/buffer/SafeUint8Array.ts");
-/* harmony import */ var common_util_bigint__WEBPACK_IMPORTED_MODULE_19__ = __webpack_require__(/*! common/util/bigint */ "./src/common/util/bigint.ts");
-var cheap__fileName__0 = "src\\avformat\\formats\\IOggFormat.ts";
-
+/* harmony import */ var cheap_std_buffer_SafeUint8Array__WEBPACK_IMPORTED_MODULE_17__ = __webpack_require__(/*! cheap/std/buffer/SafeUint8Array */ "./src/cheap/std/buffer/SafeUint8Array.ts");
+/* harmony import */ var common_util_bigint__WEBPACK_IMPORTED_MODULE_18__ = __webpack_require__(/*! common/util/bigint */ "./src/common/util/bigint.ts");
+const cheap__fileName__0 = "src\\avformat\\formats\\IOggFormat.ts";
 
 
 
@@ -130,7 +128,7 @@ class IOggFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_8__["default"] {
         const now = formatContext.ioReader.getPos();
         const pts = this.currentPts;
         const fileSize = await formatContext.ioReader.fileSize();
-        await formatContext.ioReader.seek(common_util_bigint__WEBPACK_IMPORTED_MODULE_19__.max(fileSize - BigInt(195072), BigInt(0)));
+        await formatContext.ioReader.seek(common_util_bigint__WEBPACK_IMPORTED_MODULE_18__.max(fileSize - BigInt(195072), BigInt(0)));
         await this.syncPage(formatContext);
         while (true) {
             try {
@@ -185,16 +183,9 @@ class IOggFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_8__["default"] {
     }
     addComment(comments, stream) {
         if (comments.vendorString) {
-            stream.metadata['vendor'] = comments.vendorString;
+            stream.metadata["vendor" /* AVStreamMetadataKey.VENDOR */] = comments.vendorString;
         }
-        common_util_array__WEBPACK_IMPORTED_MODULE_17__.each(comments.comments.list, (comment) => {
-            const item = comment.split('=');
-            if (item.length > 1) {
-                const key = item.shift();
-                const value = item.join('=');
-                stream.metadata[key] = value;
-            }
-        });
+        (0,_ogg_vorbis__WEBPACK_IMPORTED_MODULE_5__.parseVorbisComment)(comments.comments.list, stream.metadata);
     }
     async createStream(formatContext, payload) {
         if (payload.length < 8) {
@@ -206,6 +197,17 @@ class IOggFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_8__["default"] {
         if (signature === 'OpusHead') {
             const idPage = new _ogg_opus__WEBPACK_IMPORTED_MODULE_4__.OpusOggsIdPage();
             idPage.read(ioReader);
+            const stream = formatContext.createStream();
+            stream.codecpar.codecType = 1 /* AVMediaType.AVMEDIA_TYPE_AUDIO */;
+            stream.codecpar.codecId = 86076 /* AVCodecID.AV_CODEC_ID_OPUS */;
+            stream.codecpar.sampleRate = idPage.sampleRate;
+            stream.codecpar.chLayout.nbChannels = idPage.channels;
+            stream.timeBase.den = stream.codecpar.sampleRate;
+            stream.timeBase.num = 1;
+            stream.codecpar.extradata = (0,avutil_util_mem__WEBPACK_IMPORTED_MODULE_10__.avMalloc)(payload.length);
+            stream.codecpar.extradataSize = payload.length;
+            stream.codecpar.initialPadding = idPage.preSkip;
+            (0,cheap_std_memory__WEBPACK_IMPORTED_MODULE_9__.memcpyFromUint8Array)(stream.codecpar.extradata, payload.length, payload);
             const commentPage = new _ogg_opus__WEBPACK_IMPORTED_MODULE_4__.OpusOggsCommentPage();
             payload = await this.getNextSegment(formatContext);
             ioReader = new common_io_IOReaderSync__WEBPACK_IMPORTED_MODULE_12__["default"](payload.length, false);
@@ -215,13 +217,6 @@ class IOggFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_8__["default"] {
                 idPage,
                 commentPage
             ];
-            const stream = formatContext.createStream();
-            stream.codecpar.codecType = 1 /* AVMediaType.AVMEDIA_TYPE_AUDIO */;
-            stream.codecpar.codecId = 86076 /* AVCodecID.AV_CODEC_ID_OPUS */;
-            stream.codecpar.sampleRate = idPage.sampleRate;
-            stream.codecpar.chLayout.nbChannels = idPage.channels;
-            stream.timeBase.den = stream.codecpar.sampleRate;
-            stream.timeBase.num = 1;
             stream.privData = {
                 serialNumber: this.page.serialNumber
             };
@@ -259,7 +254,7 @@ class IOggFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_8__["default"] {
                 return pre + 2 + buffer.length;
             }, 0);
             const data = (0,avutil_util_mem__WEBPACK_IMPORTED_MODULE_10__.avMalloc)(extradataSize);
-            const ioWriter = new common_io_IOWriterSync__WEBPACK_IMPORTED_MODULE_13__["default"](extradataSize, true, new cheap_std_buffer_SafeUint8Array__WEBPACK_IMPORTED_MODULE_18__["default"](data, extradataSize));
+            const ioWriter = new common_io_IOWriterSync__WEBPACK_IMPORTED_MODULE_13__["default"](extradataSize, true, new cheap_std_buffer_SafeUint8Array__WEBPACK_IMPORTED_MODULE_17__["default"](data, extradataSize));
             buffers.forEach((buffer) => {
                 ioWriter.writeUint16(buffer.length);
                 ioWriter.writeBuffer(buffer);
@@ -353,7 +348,7 @@ class IOggFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_8__["default"] {
         try {
             let signature = await formatContext.ioReader.peekString(4);
             if (signature !== 'OggS') {
-                common_util_logger__WEBPACK_IMPORTED_MODULE_3__.error('the file format is not oggs', cheap__fileName__0, 387);
+                common_util_logger__WEBPACK_IMPORTED_MODULE_3__.error('the file format is not oggs', cheap__fileName__0, 386);
                 return avutil_error__WEBPACK_IMPORTED_MODULE_6__.DATA_INVALID;
             }
             while (true) {
@@ -374,7 +369,7 @@ class IOggFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_8__["default"] {
             return 0;
         }
         catch (error) {
-            common_util_logger__WEBPACK_IMPORTED_MODULE_3__.error(error.message, cheap__fileName__0, 409);
+            common_util_logger__WEBPACK_IMPORTED_MODULE_3__.error(error.message, cheap__fileName__0, 408);
             return formatContext.ioReader.error;
         }
     }
@@ -429,8 +424,9 @@ class IOggFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_8__["default"] {
             return 0;
         }
         catch (error) {
-            if (formatContext.ioReader.error !== -1048576 /* IOError.END */) {
-                common_util_logger__WEBPACK_IMPORTED_MODULE_3__.error(`read packet error, ${error}`, cheap__fileName__0, 478);
+            if (formatContext.ioReader.error !== -1048576 /* IOError.END */
+                && formatContext.ioReader.error !== -1048572 /* IOError.ABORT */) {
+                common_util_logger__WEBPACK_IMPORTED_MODULE_3__.error(`read packet error, ${error}`, cheap__fileName__0, 479);
                 return avutil_error__WEBPACK_IMPORTED_MODULE_6__.DATA_INVALID;
             }
             return formatContext.ioReader.error;
@@ -724,7 +720,7 @@ class OggsCommentPage {
     userCommentListLength;
     comments;
     constructor() {
-        this.vendorString = "v0.0.1-53-g5c77924";
+        this.vendorString = "v0.9.0-15-gdd5cd674";
         this.vendorStringLength = this.vendorString.length;
         this.userCommentListLength = 0;
         this.comments = new UserComment();
@@ -928,9 +924,13 @@ class OpusOggsCommentPage extends _OggPage__WEBPACK_IMPORTED_MODULE_0__.OggsComm
 
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   VorbisOggsCommentPage: () => (/* binding */ VorbisOggsCommentPage),
-/* harmony export */   VorbisOggsIdPage: () => (/* binding */ VorbisOggsIdPage)
+/* harmony export */   VorbisOggsIdPage: () => (/* binding */ VorbisOggsIdPage),
+/* harmony export */   addVorbisComment: () => (/* binding */ addVorbisComment),
+/* harmony export */   parseVorbisComment: () => (/* binding */ parseVorbisComment)
 /* harmony export */ });
 /* harmony import */ var _OggPage__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./OggPage */ "./src/avformat/formats/ogg/OggPage.ts");
+/* harmony import */ var common_util_object__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! common/util/object */ "./src/common/util/object.ts");
+/* harmony import */ var common_function_isDef__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! common/function/isDef */ "./src/common/function/isDef.ts");
 /*
  * libmedia oggs vorbis page parser
  *
@@ -956,6 +956,59 @@ class OpusOggsCommentPage extends _OggPage__WEBPACK_IMPORTED_MODULE_0__.OggsComm
  *
  */
 
+
+
+const CommentKeyMap = {
+    'album': "album" /* AVStreamMetadataKey.ALBUM */,
+    'artist': "artist" /* AVStreamMetadataKey.ARTIST */,
+    'description': "description" /* AVStreamMetadataKey.DESCRIPTION */,
+    'encoder': "encoder" /* AVStreamMetadataKey.ENCODER */,
+    'title': "title" /* AVStreamMetadataKey.TITLE */,
+    'tracknumber': "track" /* AVStreamMetadataKey.TRACK */,
+    'date': "date" /* AVStreamMetadataKey.DATE */,
+    'genre': "genre" /* AVStreamMetadataKey.GENRE */,
+    'comment': "comment" /* AVStreamMetadataKey.COMMENT */,
+    'albumartist': "albumArtist" /* AVStreamMetadataKey.ALBUM_ARTIST */,
+    'composer': "composer" /* AVStreamMetadataKey.COMPOSER */,
+    'performer': "performer" /* AVStreamMetadataKey.PERFORMER */,
+    'discnumber': "disc" /* AVStreamMetadataKey.DISC */,
+    'organization': "vendor" /* AVStreamMetadataKey.VENDOR */,
+    'copyright': "copyright" /* AVStreamMetadataKey.COPYRIGHT */,
+    'license': "license" /* AVStreamMetadataKey.LICENSE */,
+    'isrc': "isrc" /* AVStreamMetadataKey.ISRC */,
+    'lyrics': "lyrics" /* AVStreamMetadataKey.LYRICS */,
+    'language': "language" /* AVStreamMetadataKey.LANGUAGE */,
+    'label': "vendor" /* AVStreamMetadataKey.VENDOR */,
+    'script': "lyrics" /* AVStreamMetadataKey.LYRICS */,
+    'encoded_by': "vendor" /* AVStreamMetadataKey.VENDOR */
+};
+function parseVorbisComment(list, metadata) {
+    if (!list) {
+        return;
+    }
+    list.forEach((value) => {
+        const l = value.split('=');
+        if (l.length === 2) {
+            const k = l[0].trim().toLowerCase();
+            const v = l[1].trim();
+            if (CommentKeyMap[k]) {
+                metadata[CommentKeyMap[k]] = v;
+            }
+            else {
+                metadata[k.toLowerCase()] = v;
+            }
+        }
+    });
+}
+function addVorbisComment(metadata) {
+    const list = [];
+    common_util_object__WEBPACK_IMPORTED_MODULE_1__.each(CommentKeyMap, (value, key) => {
+        if ((0,common_function_isDef__WEBPACK_IMPORTED_MODULE_2__["default"])(metadata[value])) {
+            list.push(`${key.toUpperCase()}=${metadata[value]}`);
+        }
+    });
+    return list;
+}
 class VorbisOggsIdPage {
     streamIndex;
     /**
@@ -1145,7 +1198,7 @@ function getBytesByDuration(streams, duration, timeBase) {
 /* harmony export */   "default": () => (/* binding */ seekInBytes)
 /* harmony export */ });
 /* harmony import */ var cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! cheap/ctypeEnumRead */ "./src/cheap/ctypeEnumRead.ts");
-/* harmony import */ var _avutil_struct_rational_ts__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./..\..\avutil\struct\rational.ts */ "./src/avutil/struct/rational.ts");
+/* harmony import */ var _avutil_struct_rational__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./..\..\avutil\struct\rational */ "./src/avutil/struct/rational.ts");
 /* harmony import */ var cheap_std_structAccess__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! cheap/std/structAccess */ "./src/cheap/std/structAccess.ts");
 /* harmony import */ var avutil_constant__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! avutil/constant */ "./src/avutil/constant.ts");
 /* harmony import */ var avutil_util_rational__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! avutil/util/rational */ "./src/avutil/util/rational.ts");
@@ -1153,7 +1206,7 @@ function getBytesByDuration(streams, duration, timeBase) {
 /* harmony import */ var avutil_util_avpacket__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! avutil/util/avpacket */ "./src/avutil/util/avpacket.ts");
 /* harmony import */ var avutil_error__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! avutil/error */ "./src/avutil/error.ts");
 /* harmony import */ var common_util_logger__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! common/util/logger */ "./src/common/util/logger.ts");
-var cheap__fileName__0 = "src\\avformat\\function\\seekInBytes.ts";
+const cheap__fileName__0 = "src\\avformat\\function\\seekInBytes.ts";
 
 
 
@@ -1163,7 +1216,6 @@ var cheap__fileName__0 = "src\\avformat\\function\\seekInBytes.ts";
 
 
 
-// @ts-ignore
 async function seekInBytes(context, stream, timestamp, firstPacketPos, readAVPacket, syncAVPacket) {
     const now = context.ioReader.getPos();
     const fileSize = await context.ioReader.fileSize();
@@ -1178,7 +1230,7 @@ async function seekInBytes(context, stream, timestamp, firstPacketPos, readAVPac
     const pointPts = (0,avutil_util_rational__WEBPACK_IMPORTED_MODULE_4__.avRescaleQ)(timestamp, stream.timeBase, avutil_constant__WEBPACK_IMPORTED_MODULE_3__.AV_MILLI_TIME_BASE_Q);
     // 头十秒直接回到开始位置
     if (pointPts < BigInt(10000)) {
-        common_util_logger__WEBPACK_IMPORTED_MODULE_8__.debug(`seek pts is earlier then 10s, seek to first packet pos(${firstPacketPos}) directly`, cheap__fileName__0, 63);
+        common_util_logger__WEBPACK_IMPORTED_MODULE_8__.debug(`seek pts is earlier then 10s, seek to first packet pos(${firstPacketPos}) directly`, cheap__fileName__0, 62);
         await context.ioReader.seek(firstPacketPos);
         return now;
     }
@@ -1203,12 +1255,15 @@ async function seekInBytes(context, stream, timestamp, firstPacketPos, readAVPac
         }
         await context.ioReader.seek(bytes);
         await syncAVPacket(context);
+        if (context.ioReader.flags & 8 /* IOFlags.ABORT */) {
+            break;
+        }
         const now = context.ioReader.getPos();
         let ret = await readAVPacket(context, avpacket);
         if (ret >= 0) {
-            const currentPts = (0,avutil_util_rational__WEBPACK_IMPORTED_MODULE_4__.avRescaleQ)(cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[17](avpacket + 8), (0,cheap_std_structAccess__WEBPACK_IMPORTED_MODULE_2__["default"])(avpacket + 72, _avutil_struct_rational_ts__WEBPACK_IMPORTED_MODULE_1__.Rational), avutil_constant__WEBPACK_IMPORTED_MODULE_3__.AV_MILLI_TIME_BASE_Q);
+            const currentPts = (0,avutil_util_rational__WEBPACK_IMPORTED_MODULE_4__.avRescaleQ2)(cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[17](avpacket + 8), avpacket + 72, avutil_constant__WEBPACK_IMPORTED_MODULE_3__.AV_MILLI_TIME_BASE_Q);
             const diff = currentPts - pointPts;
-            common_util_logger__WEBPACK_IMPORTED_MODULE_8__.debug(`try to seek to pos: ${bytes}, got packet pts: ${cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[17](avpacket + 8)}(${currentPts}ms), diff: ${diff}ms`, cheap__fileName__0, 98);
+            common_util_logger__WEBPACK_IMPORTED_MODULE_8__.debug(`try to seek to pos: ${bytes}, got packet pts: ${cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[17](avpacket + 8)}(${currentPts}ms), diff: ${diff}ms`, cheap__fileName__0, 100);
             // seek 时间戳的前面 10 秒内
             if (diff <= BigInt(0) && -diff < BigInt(10000)) {
                 pos = now;
@@ -1230,16 +1285,22 @@ async function seekInBytes(context, stream, timestamp, firstPacketPos, readAVPac
             pos = avutil_constant__WEBPACK_IMPORTED_MODULE_3__.NOPTS_VALUE_BIGINT;
             break;
         }
+        if (context.ioReader.flags & 8 /* IOFlags.ABORT */) {
+            break;
+        }
     }
     (0,avutil_util_avpacket__WEBPACK_IMPORTED_MODULE_6__.destroyAVPacket)(avpacket);
     if (pos !== avutil_constant__WEBPACK_IMPORTED_MODULE_3__.NOPTS_VALUE_BIGINT) {
-        common_util_logger__WEBPACK_IMPORTED_MODULE_8__.debug(`finally seek to pos ${pos}`, cheap__fileName__0, 126);
+        common_util_logger__WEBPACK_IMPORTED_MODULE_8__.debug(`finally seek to pos ${pos}`, cheap__fileName__0, 131);
         await context.ioReader.seek(pos);
         await syncAVPacket(context);
         return now;
     }
     else {
         await context.ioReader.seek(now);
+        if (context.ioReader.flags & 8 /* IOFlags.ABORT */) {
+            return BigInt(avutil_error__WEBPACK_IMPORTED_MODULE_7__.EOF);
+        }
     }
     return BigInt(avutil_error__WEBPACK_IMPORTED_MODULE_7__.FORMAT_NOT_SUPPORT);
 }
@@ -1258,7 +1319,7 @@ async function seekInBytes(context, stream, timestamp, firstPacketPos, readAVPac
 /* harmony export */ });
 /* harmony import */ var _util_logger__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../util/logger */ "./src/common/util/logger.ts");
 /* harmony import */ var _util_text__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../util/text */ "./src/common/util/text.ts");
-var cheap__fileName__0 = "src\\common\\io\\IOReaderSync.ts";
+const cheap__fileName__0 = "src\\common\\io\\IOReaderSync.ts";
 /**
  * 读字节流工具
  */
@@ -1998,6 +2059,14 @@ class IOReaderSync {
         this.littleEndian = !bigEndian;
     }
     /**
+     * 当前读取模式是否是大端
+     *
+     * @returns
+     */
+    isBigEndian() {
+        return !this.littleEndian;
+    }
+    /**
      * 获取源总字节长度
      *
      * @returns
@@ -2007,14 +2076,14 @@ class IOReaderSync {
             return this.fileSize_;
         }
         if (!this.onSize) {
-            _util_logger__WEBPACK_IMPORTED_MODULE_0__.warn('IOReader error, fileSize failed because of no onSize callback', cheap__fileName__0, 871);
+            _util_logger__WEBPACK_IMPORTED_MODULE_0__.warn('IOReader error, fileSize failed because of no onSize callback', cheap__fileName__0, 880);
             return BigInt(0);
         }
         try {
             this.fileSize_ = this.onSize();
         }
         catch (error) {
-            _util_logger__WEBPACK_IMPORTED_MODULE_0__.warn(`IOReader error, call fileSize failed: ${error}`, cheap__fileName__0, 878);
+            _util_logger__WEBPACK_IMPORTED_MODULE_0__.warn(`IOReader error, call fileSize failed: ${error}`, cheap__fileName__0, 887);
             this.fileSize_ = BigInt(0);
         }
         return this.fileSize_;

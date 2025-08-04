@@ -19,7 +19,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _FetchIOLoader__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./FetchIOLoader */ "./src/avnetwork/ioLoader/FetchIOLoader.ts");
 /* harmony import */ var common_function_getTimestamp__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! common/function/getTimestamp */ "./src/common/function/getTimestamp.ts");
 /* harmony import */ var avutil_error__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! avutil/error */ "./src/avutil/error.ts");
-var cheap__fileName__0 = "src\\avnetwork\\ioLoader\\DashIOLoader.ts";
+const cheap__fileName__0 = "src\\avnetwork\\ioLoader\\DashIOLoader.ts";
 /*
  * libmedia dash loader
  *
@@ -52,20 +52,22 @@ var cheap__fileName__0 = "src\\avnetwork\\ioLoader\\DashIOLoader.ts";
 
 
 
-const FETCHED_HISTORY_LIST_MAX = 10;
+const FETCHED_HISTORY_LIST_MAX = 100;
 class DashIOLoader extends _IOLoader__WEBPACK_IMPORTED_MODULE_1__["default"] {
     info;
-    range;
     mediaPlayList;
     fetchMediaPlayListPromise;
     minBuffer;
     audioResource;
     videoResource;
     subtitleResource;
+    aborted;
+    signal;
     createResource(type) {
         return {
             type,
             fetchedMap: new Map(),
+            fetchedHistoryListMax: FETCHED_HISTORY_LIST_MAX,
             fetchedHistoryList: [],
             loader: null,
             segmentIndex: 0,
@@ -73,8 +75,22 @@ class DashIOLoader extends _IOLoader__WEBPACK_IMPORTED_MODULE_1__["default"] {
             selectedIndex: 0,
             segments: [],
             initSegmentPadding: '',
-            initedSegment: ''
+            initedSegment: '',
+            sleep: null,
+            lastPendingSegmentFetchTs: 0,
+            lastPendingSegmentDuration: 0
         };
+    }
+    addHistory(resource, segments, index) {
+        resource.fetchedMap.clear();
+        resource.fetchedHistoryList.length = 0;
+        for (let i = 0; i < index; i++) {
+            resource.fetchedMap.set(segments[i].url, true);
+            resource.fetchedHistoryList.push(segments[i].url);
+        }
+        while (resource.fetchedHistoryList.length >= resource.fetchedHistoryListMax) {
+            resource.fetchedMap.delete(resource.fetchedHistoryList.shift());
+        }
     }
     async fetchMediaPlayList(resolve) {
         if (!resolve) {
@@ -92,48 +108,82 @@ class DashIOLoader extends _IOLoader__WEBPACK_IMPORTED_MODULE_1__["default"] {
             cache: 'default',
             referrerPolicy: 'no-referrer-when-downgrade'
         };
-        if (this.info.headers) {
-            common_util_object__WEBPACK_IMPORTED_MODULE_2__.each(this.info.headers, (value, key) => {
+        if (this.info.httpOptions?.headers) {
+            common_util_object__WEBPACK_IMPORTED_MODULE_2__.each(this.info.httpOptions.headers, (value, key) => {
                 params.headers[key] = value;
             });
         }
-        if (this.info.withCredentials) {
-            params.credentials = 'include';
+        if (this.info.httpOptions?.credentials) {
+            params.credentials = this.info.httpOptions.credentials;
         }
-        if (this.info.referrerPolicy) {
-            params.referrerPolicy = this.info.referrerPolicy;
+        if (this.info.httpOptions?.referrerPolicy) {
+            params.referrerPolicy = this.info.httpOptions.referrerPolicy;
         }
         try {
-            const res = await fetch(this.info.url, params);
+            if (typeof AbortController === 'function') {
+                this.signal = new AbortController();
+            }
+            const res = await fetch(this.info.url, {
+                ...params,
+                signal: this.signal?.signal
+            });
+            this.signal = null;
             const text = await res.text();
             this.mediaPlayList = (0,avprotocol_dash_parser__WEBPACK_IMPORTED_MODULE_4__["default"])(text, this.info.url);
             this.minBuffer = this.mediaPlayList.minBufferTime;
-            if (this.options.isLive) {
-                const needSegment = this.mediaPlayList.minBufferTime / this.mediaPlayList.maxSegmentDuration;
-                const segmentCount = Math.max(this.mediaPlayList.mediaList.audio && this.mediaPlayList.mediaList.audio[0]?.mediaSegments.length || 0, this.mediaPlayList.mediaList.video && this.mediaPlayList.mediaList.video[0]?.mediaSegments.length || 0);
-                if (segmentCount < needSegment) {
-                    await new common_timer_Sleep__WEBPACK_IMPORTED_MODULE_0__["default"]((needSegment - segmentCount) * this.mediaPlayList.maxSegmentDuration);
-                    common_util_logger__WEBPACK_IMPORTED_MODULE_3__.warn(`wait for min buffer time, buffer: ${segmentCount * this.mediaPlayList.maxSegmentDuration}, need: ${needSegment * this.mediaPlayList.maxSegmentDuration}`, cheap__fileName__0, 143);
-                    return this.fetchMediaPlayList(resolve);
-                }
-            }
             if (this.mediaPlayList.type === 'vod') {
                 this.options.isLive = false;
             }
             else {
                 this.options.isLive = true;
             }
+            const addIgnoreSegment = (resource, segments, minBuffer) => {
+                let index = 0;
+                let cache = 0;
+                for (let i = segments.length - 2; i >= 0; i--) {
+                    if (segments[i].pending !== true) {
+                        cache += segments[i].segmentDuration;
+                        if (cache >= minBuffer) {
+                            index = i;
+                            break;
+                        }
+                    }
+                }
+                resource.lastPendingSegmentFetchTs = this.mediaPlayList.maxSegmentDuration;
+                resource.lastPendingSegmentDuration = this.mediaPlayList.maxSegmentDuration;
+                resource.fetchedHistoryListMax = Math.max(resource.fetchedHistoryListMax, segments.length + 1);
+                this.addHistory(resource, segments, index);
+            };
             if (this.mediaPlayList.mediaList.audio.length) {
                 const media = this.mediaPlayList.mediaList.audio[this.audioResource.selectedIndex];
                 if (media.file) {
-                    this.audioResource.segments = [media.file];
+                    this.audioResource.segments = [{
+                            url: media.file
+                        }];
                 }
                 else {
                     if (this.options.isLive && this.audioResource.initedSegment === media.initSegment) {
-                        this.audioResource.segments = media.mediaSegments.map((s) => s.url);
+                        this.audioResource.segments = media.mediaSegments.map((s) => {
+                            return {
+                                url: s.url,
+                                pending: s.pending,
+                                duration: s.segmentDuration
+                            };
+                        });
+                        this.audioResource.lastPendingSegmentFetchTs = this.mediaPlayList.timestamp;
+                        this.audioResource.lastPendingSegmentDuration = this.mediaPlayList.maxSegmentDuration;
                     }
                     else {
-                        this.audioResource.segments = [media.initSegment].concat(media.mediaSegments.map((s) => s.url));
+                        if (this.options.isLive) {
+                            addIgnoreSegment(this.audioResource, media.mediaSegments, this.minBuffer);
+                        }
+                        this.audioResource.segments = [{ url: media.initSegment }].concat(media.mediaSegments.map((s) => {
+                            return {
+                                url: s.url,
+                                pending: s.pending,
+                                duration: s.segmentDuration
+                            };
+                        }));
                         this.audioResource.initedSegment = media.initSegment;
                     }
                 }
@@ -141,14 +191,33 @@ class DashIOLoader extends _IOLoader__WEBPACK_IMPORTED_MODULE_1__["default"] {
             if (this.mediaPlayList.mediaList.video.length) {
                 const media = this.mediaPlayList.mediaList.video[this.videoResource.selectedIndex];
                 if (media.file) {
-                    this.videoResource.segments = [media.file];
+                    this.videoResource.segments = [{
+                            url: media.file
+                        }];
                 }
                 else {
                     if (this.options.isLive && this.videoResource.initedSegment === media.initSegment) {
-                        this.videoResource.segments = media.mediaSegments.map((s) => s.url);
+                        this.videoResource.segments = media.mediaSegments.map((s) => {
+                            return {
+                                url: s.url,
+                                pending: s.pending,
+                                duration: s.segmentDuration
+                            };
+                        });
+                        this.videoResource.lastPendingSegmentFetchTs = this.mediaPlayList.maxSegmentDuration;
+                        this.videoResource.lastPendingSegmentDuration = this.mediaPlayList.maxSegmentDuration;
                     }
                     else {
-                        this.videoResource.segments = [media.initSegment].concat(media.mediaSegments.map((s) => s.url));
+                        if (this.options.isLive) {
+                            addIgnoreSegment(this.videoResource, media.mediaSegments, this.minBuffer);
+                        }
+                        this.videoResource.segments = [{ url: media.initSegment }].concat(media.mediaSegments.map((s) => {
+                            return {
+                                url: s.url,
+                                pending: s.pending,
+                                duration: s.segmentDuration
+                            };
+                        }));
                         this.videoResource.initedSegment = media.initSegment;
                     }
                 }
@@ -156,14 +225,33 @@ class DashIOLoader extends _IOLoader__WEBPACK_IMPORTED_MODULE_1__["default"] {
             if (this.mediaPlayList.mediaList.subtitle.length) {
                 const media = this.mediaPlayList.mediaList.subtitle[this.subtitleResource.selectedIndex];
                 if (media.file) {
-                    this.subtitleResource.segments = [media.file];
+                    this.subtitleResource.segments = [{
+                            url: media.file
+                        }];
                 }
                 else {
                     if (this.options.isLive && this.subtitleResource.initedSegment === media.initSegment) {
-                        this.subtitleResource.segments = media.mediaSegments.map((s) => s.url);
+                        this.subtitleResource.segments = media.mediaSegments.map((s) => {
+                            return {
+                                url: s.url,
+                                pending: s.pending,
+                                duration: s.segmentDuration
+                            };
+                        });
+                        this.subtitleResource.lastPendingSegmentFetchTs = this.mediaPlayList.maxSegmentDuration;
+                        this.subtitleResource.lastPendingSegmentDuration = this.mediaPlayList.maxSegmentDuration;
                     }
                     else {
-                        this.subtitleResource.segments = [media.initSegment].concat(media.mediaSegments.map((s) => s.url));
+                        if (this.options.isLive) {
+                            addIgnoreSegment(this.subtitleResource, media.mediaSegments, this.minBuffer);
+                        }
+                        this.subtitleResource.segments = [{ url: media.initSegment }].concat(media.mediaSegments.map((s) => {
+                            return {
+                                url: s.url,
+                                pending: s.pending,
+                                duration: s.segmentDuration
+                            };
+                        }));
                         this.subtitleResource.initedSegment = media.initSegment;
                     }
                 }
@@ -175,34 +263,38 @@ class DashIOLoader extends _IOLoader__WEBPACK_IMPORTED_MODULE_1__["default"] {
             return this.mediaPlayList;
         }
         catch (error) {
+            if (this.aborted) {
+                this.status = 3 /* IOLoaderStatus.ERROR */;
+                resolve();
+                return;
+            }
             if (this.retryCount < this.options.retryCount) {
                 this.retryCount++;
-                common_util_logger__WEBPACK_IMPORTED_MODULE_3__.error(`failed fetch mpd file, retry(${this.retryCount}/3)`, cheap__fileName__0, 215);
+                common_util_logger__WEBPACK_IMPORTED_MODULE_3__.error(`failed fetch mpd file ${error}, retry(${this.retryCount}/3)`, cheap__fileName__0, 300);
                 await new common_timer_Sleep__WEBPACK_IMPORTED_MODULE_0__["default"](this.status === 2 /* IOLoaderStatus.BUFFERING */ ? this.options.retryInterval : 5);
                 return this.fetchMediaPlayList(resolve);
             }
             else {
                 this.status = 3 /* IOLoaderStatus.ERROR */;
                 resolve();
-                common_util_logger__WEBPACK_IMPORTED_MODULE_3__.fatal(`DashLoader: exception, fetch slice error, error: ${error.message}`, cheap__fileName__0, 223);
+                common_util_logger__WEBPACK_IMPORTED_MODULE_3__.fatal(`DashLoader: exception, fetch slice error, error: ${error.message}`, cheap__fileName__0, 308);
             }
         }
     }
-    async open(info, range) {
+    async open(info) {
+        if (this.status === 2 /* IOLoaderStatus.BUFFERING */) {
+            return 0;
+        }
         if (this.status !== 0 /* IOLoaderStatus.IDLE */) {
             return avutil_error__WEBPACK_IMPORTED_MODULE_7__.INVALID_OPERATE;
         }
         this.info = info;
-        this.range = range;
-        if (!this.range.to) {
-            this.range.to = -1;
-        }
-        this.range.from = Math.max(this.range.from, 0);
-        this.videoResource = this.createResource('video');
-        this.audioResource = this.createResource('audio');
-        this.subtitleResource = this.createResource('subtitle');
+        this.videoResource = this.createResource(0 /* AVMediaType.AVMEDIA_TYPE_VIDEO */);
+        this.audioResource = this.createResource(1 /* AVMediaType.AVMEDIA_TYPE_AUDIO */);
+        this.subtitleResource = this.createResource(3 /* AVMediaType.AVMEDIA_TYPE_SUBTITLE */);
         this.status = 1 /* IOLoaderStatus.CONNECTING */;
         this.retryCount = 0;
+        this.aborted = false;
         await this.fetchMediaPlayList();
         return 0;
     }
@@ -216,7 +308,7 @@ class DashIOLoader extends _IOLoader__WEBPACK_IMPORTED_MODULE_1__["default"] {
             else {
                 if (this.options.isLive) {
                     resource.fetchedMap.set(resource.currentUri, true);
-                    if (resource.fetchedHistoryList.length === FETCHED_HISTORY_LIST_MAX) {
+                    if (resource.fetchedHistoryList.length === resource.fetchedHistoryListMax) {
                         resource.fetchedMap.delete(resource.fetchedHistoryList.shift());
                     }
                     resource.fetchedHistoryList.push(resource.currentUri);
@@ -231,8 +323,8 @@ class DashIOLoader extends _IOLoader__WEBPACK_IMPORTED_MODULE_1__["default"] {
             }
         }
         if (this.options.isLive) {
-            const segments = resource.segments.filter((url) => {
-                return !resource.fetchedMap.get(url);
+            const segments = resource.segments.filter((s) => {
+                return !resource.fetchedMap.get(s.url);
             });
             if (!segments.length) {
                 if (this.mediaPlayList.isEnd) {
@@ -241,24 +333,48 @@ class DashIOLoader extends _IOLoader__WEBPACK_IMPORTED_MODULE_1__["default"] {
                 const wait = ((this.mediaPlayList.duration || this.mediaPlayList.minimumUpdatePeriod)
                     - ((0,common_function_getTimestamp__WEBPACK_IMPORTED_MODULE_6__["default"])() - this.mediaPlayList.timestamp) / 1000);
                 if (wait > 0) {
-                    await new common_timer_Sleep__WEBPACK_IMPORTED_MODULE_0__["default"](Math.max(wait, 2));
+                    resource.sleep = new common_timer_Sleep__WEBPACK_IMPORTED_MODULE_0__["default"](wait);
+                    await resource.sleep;
+                    resource.sleep = null;
+                    if (this.aborted) {
+                        return -1048576 /* IOError.END */;
+                    }
                 }
                 if (this.fetchMediaPlayListPromise) {
                     await this.fetchMediaPlayListPromise;
-                    if (this.status === 3 /* IOLoaderStatus.ERROR */) {
+                    if (this.status === 3 /* IOLoaderStatus.ERROR */ || this.aborted) {
                         return -1048576 /* IOError.END */;
                     }
                 }
                 else {
                     await this.fetchMediaPlayList();
+                    if (this.aborted) {
+                        return -1048576 /* IOError.END */;
+                    }
                 }
                 return this.readResource(buffer, resource);
             }
-            resource.currentUri = segments[0];
+            resource.currentUri = segments[0].url;
+            if (this.options.isLive && segments[0].pending) {
+                if (resource.lastPendingSegmentFetchTs) {
+                    const wait = resource.lastPendingSegmentDuration
+                        - (((0,common_function_getTimestamp__WEBPACK_IMPORTED_MODULE_6__["default"])() - resource.lastPendingSegmentFetchTs) / 1000);
+                    if (wait > 0) {
+                        resource.sleep = new common_timer_Sleep__WEBPACK_IMPORTED_MODULE_0__["default"](wait);
+                        await resource.sleep;
+                        resource.sleep = null;
+                        if (this.aborted) {
+                            return -1048576 /* IOError.END */;
+                        }
+                    }
+                }
+                resource.lastPendingSegmentFetchTs = (0,common_function_getTimestamp__WEBPACK_IMPORTED_MODULE_6__["default"])();
+                resource.lastPendingSegmentDuration = segments[0].duration || this.mediaPlayList.maxSegmentDuration;
+            }
             resource.loader = new _FetchIOLoader__WEBPACK_IMPORTED_MODULE_5__["default"](common_util_object__WEBPACK_IMPORTED_MODULE_2__.extend({}, this.options, { disableSegment: true, loop: false }));
-            await resource.loader.open({
+            await resource.loader.open(common_util_object__WEBPACK_IMPORTED_MODULE_2__.extend({}, this.info, {
                 url: resource.currentUri
-            }, {
+            }), {
                 from: 0,
                 to: -1
             });
@@ -267,9 +383,9 @@ class DashIOLoader extends _IOLoader__WEBPACK_IMPORTED_MODULE_1__["default"] {
         else {
             resource.loader = new _FetchIOLoader__WEBPACK_IMPORTED_MODULE_5__["default"](common_util_object__WEBPACK_IMPORTED_MODULE_2__.extend({}, this.options, { disableSegment: true, loop: false }));
             if (resource.initSegmentPadding) {
-                await resource.loader.open({
+                await resource.loader.open(common_util_object__WEBPACK_IMPORTED_MODULE_2__.extend({}, this.info, {
                     url: resource.initSegmentPadding
-                }, {
+                }), {
                     from: 0,
                     to: -1
                 });
@@ -277,9 +393,9 @@ class DashIOLoader extends _IOLoader__WEBPACK_IMPORTED_MODULE_1__["default"] {
                 resource.segmentIndex--;
             }
             else {
-                await resource.loader.open({
-                    url: resource.segments[resource.segmentIndex]
-                }, {
+                await resource.loader.open(common_util_object__WEBPACK_IMPORTED_MODULE_2__.extend({}, this.info, {
+                    url: resource.segments[resource.segmentIndex].url
+                }), {
                     from: 0,
                     to: -1
                 });
@@ -288,28 +404,30 @@ class DashIOLoader extends _IOLoader__WEBPACK_IMPORTED_MODULE_1__["default"] {
         }
     }
     async read(buffer, options) {
-        if (options.mediaType === 'audio') {
+        if (options.mediaType === 1 /* AVMediaType.AVMEDIA_TYPE_AUDIO */) {
             return this.readResource(buffer, this.audioResource);
         }
-        else if (options.mediaType === 'video') {
+        else if (options.mediaType === 0 /* AVMediaType.AVMEDIA_TYPE_VIDEO */) {
             return this.readResource(buffer, this.videoResource);
         }
-        else if (options.mediaType === 'subtitle') {
+        else if (options.mediaType === 3 /* AVMediaType.AVMEDIA_TYPE_SUBTITLE */) {
             return this.readResource(buffer, this.subtitleResource);
         }
         return avutil_error__WEBPACK_IMPORTED_MODULE_7__.INVALID_ARGUMENT;
     }
     async seekResource(timestamp, resource) {
+        let currentSegment = '';
         if (resource.loader) {
+            currentSegment = resource.loader.getUrl();
             await resource.loader.abort();
             resource.loader = null;
         }
         let seekTime = Number(BigInt.asIntN(32, timestamp));
         if (resource.segments) {
             let index = 0;
-            const mediaList = resource.type === 'audio'
+            const mediaList = resource.type === 1 /* AVMediaType.AVMEDIA_TYPE_AUDIO */
                 ? this.mediaPlayList.mediaList.audio
-                : (resource.type === 'video'
+                : (resource.type === 0 /* AVMediaType.AVMEDIA_TYPE_VIDEO */
                     ? this.mediaPlayList.mediaList.video
                     : this.mediaPlayList.mediaList.subtitle);
             const segmentList = mediaList[resource.selectedIndex].mediaSegments;
@@ -322,27 +440,69 @@ class DashIOLoader extends _IOLoader__WEBPACK_IMPORTED_MODULE_1__["default"] {
                 }
             }
             resource.segmentIndex = index + (mediaList[resource.selectedIndex].initSegment ? 1 : 0);
+            let initSegment = '';
+            if (resource.type === 0 /* AVMediaType.AVMEDIA_TYPE_VIDEO */) {
+                initSegment = this.mediaPlayList.mediaList.video[resource.selectedIndex].initSegment;
+            }
+            else if (resource.type === 1 /* AVMediaType.AVMEDIA_TYPE_AUDIO */) {
+                initSegment = this.mediaPlayList.mediaList.audio[resource.selectedIndex].initSegment;
+            }
+            else if (resource.type === 3 /* AVMediaType.AVMEDIA_TYPE_SUBTITLE */) {
+                initSegment = this.mediaPlayList.mediaList.subtitle[resource.selectedIndex].initSegment;
+            }
+            if (initSegment && initSegment === currentSegment) {
+                resource.initSegmentPadding = initSegment;
+            }
         }
     }
     async seek(timestamp, options) {
-        if (options.mediaType === 'audio' && this.audioResource.loader) {
+        if (options.mediaType === 1 /* AVMediaType.AVMEDIA_TYPE_AUDIO */ && this.audioResource.loader) {
             await this.seekResource(timestamp, this.audioResource);
         }
-        if (options.mediaType === 'video' && this.videoResource.loader) {
+        if (options.mediaType === 0 /* AVMediaType.AVMEDIA_TYPE_VIDEO */ && this.videoResource.loader) {
             await this.seekResource(timestamp, this.videoResource);
         }
-        if (options.mediaType === 'subtitle' && this.subtitleResource.loader) {
+        if (options.mediaType === 3 /* AVMediaType.AVMEDIA_TYPE_SUBTITLE */ && this.subtitleResource.loader) {
             await this.seekResource(timestamp, this.subtitleResource);
         }
         if (this.status === 4 /* IOLoaderStatus.COMPLETE */) {
             this.status = 2 /* IOLoaderStatus.BUFFERING */;
         }
+        this.aborted = false;
         return 0;
     }
     async size() {
         return BigInt(0);
     }
+    abortSleep() {
+        this.aborted = true;
+        if (this.videoResource.loader) {
+            this.videoResource.loader.abortSleep();
+        }
+        if (this.videoResource.sleep) {
+            this.videoResource.sleep.stop();
+            this.videoResource.sleep = null;
+        }
+        if (this.audioResource.loader) {
+            this.audioResource.loader.abortSleep();
+        }
+        if (this.audioResource.sleep) {
+            this.audioResource.sleep.stop();
+            this.audioResource.sleep = null;
+        }
+        if (this.subtitleResource.loader) {
+            this.subtitleResource.loader.abortSleep();
+        }
+        if (this.subtitleResource.sleep) {
+            this.subtitleResource.sleep.stop();
+            this.subtitleResource.sleep = null;
+        }
+    }
     async abort() {
+        this.abortSleep();
+        if (this.signal) {
+            this.signal.abort();
+        }
         if (this.videoResource.loader) {
             await this.videoResource.loader.abort();
             this.videoResource.loader = null;
@@ -380,7 +540,8 @@ class DashIOLoader extends _IOLoader__WEBPACK_IMPORTED_MODULE_1__["default"] {
                         width: media.width,
                         height: media.height,
                         frameRate: media.frameRate,
-                        codecs: media.codecs
+                        codec: media.codecs,
+                        bandwidth: media.bandwidth
                     };
                 }),
                 selectedIndex: this.videoResource.selectedIndex
@@ -397,7 +558,8 @@ class DashIOLoader extends _IOLoader__WEBPACK_IMPORTED_MODULE_1__["default"] {
                 list: this.mediaPlayList.mediaList.audio.map((media) => {
                     return {
                         lang: media.lang,
-                        codecs: media.codecs
+                        codec: media.codecs,
+                        bandwidth: media.bandwidth
                     };
                 }),
                 selectedIndex: this.audioResource.selectedIndex
@@ -414,7 +576,7 @@ class DashIOLoader extends _IOLoader__WEBPACK_IMPORTED_MODULE_1__["default"] {
                 list: this.mediaPlayList.mediaList.subtitle.map((media) => {
                     return {
                         lang: media.lang,
-                        codecs: media.codecs
+                        codec: media.codecs
                     };
                 }),
                 selectedIndex: this.subtitleResource.selectedIndex
@@ -433,10 +595,28 @@ class DashIOLoader extends _IOLoader__WEBPACK_IMPORTED_MODULE_1__["default"] {
             this.videoResource.selectedIndex = index;
             const media = this.mediaPlayList.mediaList.video[this.videoResource.selectedIndex];
             if (media.file) {
-                this.videoResource.segments = [media.file];
+                this.videoResource.segments = [{
+                        url: media.file
+                    }];
             }
             else {
-                this.videoResource.segments = [media.initSegment].concat(media.mediaSegments.map((s) => s.url));
+                if (this.options.isLive) {
+                    let segmentIndex = this.videoResource.segmentIndex;
+                    this.videoResource.segments.find((s, i) => {
+                        if (s.url === this.videoResource.currentUri) {
+                            segmentIndex = i;
+                            return true;
+                        }
+                    });
+                    this.addHistory(this.videoResource, media.mediaSegments, segmentIndex + 1);
+                }
+                this.videoResource.segments = [{ url: media.initSegment }].concat(media.mediaSegments.map((s) => {
+                    return {
+                        url: s.url,
+                        pending: s.pending,
+                        duration: s.segmentDuration
+                    };
+                }));
                 this.videoResource.initSegmentPadding = media.initSegment;
             }
         }
@@ -449,10 +629,28 @@ class DashIOLoader extends _IOLoader__WEBPACK_IMPORTED_MODULE_1__["default"] {
             this.audioResource.selectedIndex = index;
             const media = this.mediaPlayList.mediaList.audio[this.audioResource.selectedIndex];
             if (media.file) {
-                this.audioResource.segments = [media.file];
+                this.audioResource.segments = [{
+                        url: media.file
+                    }];
             }
             else {
-                this.audioResource.segments = [media.initSegment].concat(media.mediaSegments.map((s) => s.url));
+                if (this.options.isLive) {
+                    let segmentIndex = this.audioResource.segmentIndex;
+                    this.audioResource.segments.find((s, i) => {
+                        if (s.url === this.audioResource.currentUri) {
+                            segmentIndex = i;
+                            return true;
+                        }
+                    });
+                    this.addHistory(this.audioResource, media.mediaSegments, segmentIndex + 1);
+                }
+                this.audioResource.segments = [{ url: media.initSegment }].concat(media.mediaSegments.map((s) => {
+                    return {
+                        url: s.url,
+                        pending: s.pending,
+                        duration: s.segmentDuration
+                    };
+                }));
                 this.audioResource.initSegmentPadding = media.initSegment;
             }
         }
@@ -465,12 +663,40 @@ class DashIOLoader extends _IOLoader__WEBPACK_IMPORTED_MODULE_1__["default"] {
             this.subtitleResource.selectedIndex = index;
             const media = this.mediaPlayList.mediaList.subtitle[this.subtitleResource.selectedIndex];
             if (media.file) {
-                this.subtitleResource.segments = [media.file];
+                this.subtitleResource.segments = [{
+                        url: media.file
+                    }];
             }
             else {
-                this.subtitleResource.segments = [media.initSegment].concat(media.mediaSegments.map((s) => s.url));
+                if (this.options.isLive) {
+                    let segmentIndex = this.subtitleResource.segmentIndex;
+                    this.subtitleResource.segments.find((s, i) => {
+                        if (s.url === this.subtitleResource.currentUri) {
+                            segmentIndex = i;
+                            return true;
+                        }
+                    });
+                    this.addHistory(this.subtitleResource, media.mediaSegments, segmentIndex + 1);
+                }
+                this.subtitleResource.segments = [{ url: media.initSegment }].concat(media.mediaSegments.map((s) => {
+                    return {
+                        url: s.url,
+                        pending: s.pending,
+                        duration: s.segmentDuration
+                    };
+                }));
                 this.subtitleResource.initSegmentPadding = media.initSegment;
             }
+        }
+    }
+    getCurrentProtection(mediaType) {
+        if (mediaType === 1 /* AVMediaType.AVMEDIA_TYPE_AUDIO */) {
+            const media = this.mediaPlayList.mediaList.audio[this.audioResource.selectedIndex];
+            return media.protection;
+        }
+        else if (mediaType === 0 /* AVMediaType.AVMEDIA_TYPE_VIDEO */) {
+            const media = this.mediaPlayList.mediaList.video[this.videoResource.selectedIndex];
+            return media.protection;
         }
     }
     getMinBuffer() {
@@ -492,8 +718,9 @@ class DashIOLoader extends _IOLoader__WEBPACK_IMPORTED_MODULE_1__["default"] {
 /* harmony export */ });
 /* harmony import */ var common_util_xml2Json__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! common/util/xml2Json */ "./src/common/util/xml2Json.ts");
 /* harmony import */ var common_util_is__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! common/util/is */ "./src/common/util/is.ts");
-/* harmony import */ var common_function_toString__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! common/function/toString */ "./src/common/function/toString.ts");
-/* harmony import */ var common_function_getTimestamp__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! common/function/getTimestamp */ "./src/common/function/getTimestamp.ts");
+/* harmony import */ var common_util_object__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! common/util/object */ "./src/common/util/object.ts");
+/* harmony import */ var common_function_toString__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! common/function/toString */ "./src/common/function/toString.ts");
+/* harmony import */ var common_function_getTimestamp__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! common/function/getTimestamp */ "./src/common/function/getTimestamp.ts");
 /**
  * from https://github.com/bytedance/xgplayer/blob/main/packages/xgplayer-dash/src/m4s/mpd.js
  * MIT license
@@ -502,33 +729,31 @@ class DashIOLoader extends _IOLoader__WEBPACK_IMPORTED_MODULE_1__["default"] {
 
 
 
+
 function parseMPD(xmlString) {
     if (!xmlString) {
         return null;
     }
-    return (0,common_util_xml2Json__WEBPACK_IMPORTED_MODULE_0__["default"])(xmlString);
+    return (0,common_util_xml2Json__WEBPACK_IMPORTED_MODULE_0__["default"])(xmlString, {
+        aloneValueName: 'value'
+    });
 }
 function durationConvert(value) {
-    let Hours = 0;
-    let Minutes = 0;
-    let Seconds = 0;
-    value = value.slice(value.indexOf('PT') + 2);
-    if (value.indexOf('H') > -1 && value.indexOf('M') > -1 && value.indexOf('S') > -1) {
-        Hours = parseFloat(value.slice(0, value.indexOf('H')));
-        Minutes = parseFloat(value.slice(value.indexOf('H') + 1, value.indexOf('M')));
-        Seconds = parseFloat(value.slice(value.indexOf('M') + 1, value.indexOf('S')));
+    const regex = /^PT?(?:(\d+)Y)?(?:(\d+)D)?(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?$/;
+    const match = value.match(regex);
+    if (!match) {
+        throw new Error('Invalid DASH PT duration: ' + value);
     }
-    else if (value.indexOf('H') < 0 && value.indexOf('M') > 0 && value.indexOf('S') > -1) {
-        Minutes = parseFloat(value.slice(0, value.indexOf('M')));
-        Seconds = parseFloat(value.slice(value.indexOf('M') + 1, value.indexOf('S')));
-    }
-    else if (value.indexOf('H') < 0 && value.indexOf('M') < 0 && value.indexOf('S') > -1) {
-        Seconds = parseFloat(value.slice(0, value.indexOf('S')));
-    }
-    return Hours * 3600 + Minutes * 60 + Seconds;
+    const [, year, day, hours, minutes, seconds] = match;
+    return ((parseInt(year || '0') * 3600 * 24 * 365) +
+        (parseInt(day || '0') * 3600 * 24) +
+        (parseInt(hours || '0') * 3600) +
+        (parseInt(minutes || '0') * 60) +
+        parseFloat(seconds || '0'));
 }
 function preFixInteger(num, n) {
-    return (Array(n).join('0') + num).slice(-n);
+    const str = (0,common_function_toString__WEBPACK_IMPORTED_MODULE_3__["default"])(num);
+    return str.length >= n ? str : '0'.repeat(n - str.length) + str;
 }
 function parseRational(value) {
     if (!value) {
@@ -540,9 +765,48 @@ function parseRational(value) {
     }
     return parseFloat(value);
 }
-function parser(xml, url) {
+function uuid2Uint8Array(s) {
+    s = s.replaceAll('-', '');
+    const r = [];
+    for (let i = 0; i < s.length; i += 2) {
+        r.push(+`0x${s.substring(i, i + 2)}`);
+    }
+    return new Uint8Array(r);
+}
+function parseProtection(protection) {
+    let result = {};
+    protection.forEach((item) => {
+        const obj = {};
+        common_util_object__WEBPACK_IMPORTED_MODULE_2__.each(item, (value, key) => {
+            obj[key.toLocaleLowerCase()] = value;
+        });
+        if (obj['cenc:default_kid']) {
+            result.kid = uuid2Uint8Array(obj['cenc:default_kid']);
+            result.scheme = obj.value;
+        }
+        if (obj['schemeiduri']) {
+            const url = obj['schemeiduri'].split(':');
+            if (url.length === 3 && url[0] === 'urn' && url[1] === 'uuid') {
+                result.systemId = uuid2Uint8Array(url[2]);
+            }
+        }
+        if (obj['clearkey:laurl']) {
+            result.url = obj['clearkey:laurl'].value;
+        }
+        if (obj['dashif:laurl']) {
+            result.url = obj['dashif:laurl'].value;
+        }
+    });
+    return result;
+}
+function joinPath(base, path) {
+    if (/^https?:\/\//.test(path)) {
+        return path;
+    }
+    return base + path;
+}
+function parsePeriod(result, period, url) {
     const list = {
-        source: xml,
         mediaList: {
             audio: [],
             video: [],
@@ -554,10 +818,10 @@ function parser(xml, url) {
         minBufferTime: 0,
         maxSegmentDuration: 0,
         minimumUpdatePeriod: 0,
-        timestamp: (0,common_function_getTimestamp__WEBPACK_IMPORTED_MODULE_3__["default"])()
+        timeShiftBufferDepth: 0,
+        timestamp: (0,common_function_getTimestamp__WEBPACK_IMPORTED_MODULE_4__["default"])()
     };
     const repID = [];
-    const result = parseMPD(xml).MPD;
     if (result.type === 'static') {
         list.type = 'vod';
         list.isEnd = true;
@@ -569,42 +833,53 @@ function parser(xml, url) {
         list.maxSegmentDuration = durationConvert(result.maxSegmentDuration);
     }
     if (result.minimumUpdatePeriod) {
-        list.minimumUpdatePeriod = durationConvert(result.minimumUpdatePeriod);
+        list.minimumUpdatePeriod = Math.min(durationConvert(result.minimumUpdatePeriod), Math.max(list.maxSegmentDuration, 2) * 30);
+    }
+    if (result.availabilityStartTime) {
+        list.availabilityStartTime = new Date(result.availabilityStartTime).getTime();
+    }
+    if (result.timeShiftBufferDepth) {
+        list.timeShiftBufferDepth = durationConvert(result.timeShiftBufferDepth);
     }
     if (result.mediaPresentationDuration) {
         list.duration = durationConvert(result.mediaPresentationDuration);
     }
     let MpdBaseURL = '';
     if (result.BaseURL) {
-        MpdBaseURL = result.BaseURL;
+        MpdBaseURL = common_util_is__WEBPACK_IMPORTED_MODULE_1__.array(result.BaseURL) ? result.BaseURL[0].value : (common_util_is__WEBPACK_IMPORTED_MODULE_1__.string(result.BaseURL) ? result.BaseURL : result.BaseURL.value);
     }
-    const Period = common_util_is__WEBPACK_IMPORTED_MODULE_1__.array(result.Period) ? result.Period[0] : result.Period;
-    if (!list.duration && Period && Period.duration) {
-        list.duration = durationConvert(Period.duration);
+    if (period?.duration) {
+        list.duration = durationConvert(period.duration);
     }
-    const AdaptationSet = common_util_is__WEBPACK_IMPORTED_MODULE_1__.array(Period.AdaptationSet) ? Period.AdaptationSet : [Period.AdaptationSet];
+    if (period.BaseURL) {
+        MpdBaseURL = joinPath(MpdBaseURL, common_util_is__WEBPACK_IMPORTED_MODULE_1__.string(period.BaseURL) ? period.BaseURL : period.BaseURL.value);
+    }
+    const AdaptationSet = common_util_is__WEBPACK_IMPORTED_MODULE_1__.array(period.AdaptationSet) ? period.AdaptationSet : [period.AdaptationSet];
     AdaptationSet.forEach((asItem, asIndex) => {
-        let mimeType = 'video/mp4';
-        let codecs = 'avc1.64001E';
-        let width = 640;
-        let height = 360;
-        let maxWidth = 640;
-        let maxHeight = 360;
-        let frameRate = 25;
+        let mimeType = '';
+        let contentType = '';
+        let codecs = '';
+        let width = 0;
+        let height = 0;
+        let maxWidth = 0;
+        let maxHeight = 0;
+        let frameRate = 0;
         let sar = '1:1';
         let startWithSAP = '1';
-        let bandwidth = 588633;
+        let bandwidth = 0;
         let adaptationSetBaseUrl = MpdBaseURL;
         let lang = 'und';
+        let protection;
         if (asItem.BaseURL) {
-            adaptationSetBaseUrl += asItem.BaseURL;
+            adaptationSetBaseUrl = joinPath(adaptationSetBaseUrl, common_util_is__WEBPACK_IMPORTED_MODULE_1__.string(asItem.BaseURL) ? asItem.BaseURL : asItem.BaseURL.value);
         }
         if (asItem.lang) {
             lang = asItem.lang;
         }
-        if (asItem.mimeType) {
+        if (asItem.mimeType || asItem.contentType) {
             mimeType = asItem.mimeType;
-            if (mimeType === 'video/mp4') {
+            contentType = asItem.contentType;
+            if (mimeType === 'video/mp4' || contentType === 'video') {
                 codecs = asItem.codecs;
                 width = parseFloat(asItem.width);
                 height = parseFloat(asItem.height);
@@ -621,7 +896,7 @@ function parser(xml, url) {
                 startWithSAP = asItem.startWithSAP;
                 bandwidth = parseFloat(asItem.bandwidth);
             }
-            else if (mimeType === 'audio/mp4') {
+            else if (mimeType === 'audio/mp4' || contentType === 'audio') {
                 codecs = asItem.codecs;
                 startWithSAP = asItem.startWithSAP;
                 bandwidth = parseFloat(asItem.bandwidth);
@@ -638,6 +913,9 @@ function parser(xml, url) {
                 frameRate = parseRational(asItem.frameRate);
             }
         }
+        if (asItem.ContentProtection) {
+            protection = parseProtection(asItem.ContentProtection);
+        }
         const Representation = common_util_is__WEBPACK_IMPORTED_MODULE_1__.array(asItem.Representation) ? asItem.Representation : [asItem.Representation];
         Representation.forEach((rItem, rIndex) => {
             if (repID.indexOf(rItem.id) > -1) {
@@ -647,12 +925,12 @@ function parser(xml, url) {
             let initSegment = '';
             const mediaSegments = [];
             let timescale = 0;
-            let duration = 0;
-            let baseURL = url.slice(0, url.lastIndexOf('/') + 1) + adaptationSetBaseUrl;
+            let duration = list.duration;
+            let baseURL = joinPath(url.slice(0, url.lastIndexOf('/') + 1), adaptationSetBaseUrl);
             if (rItem.mimeType) {
                 mimeType = rItem.mimeType;
             }
-            if (mimeType === 'video/mp4') {
+            if (mimeType === 'video/mp4' || contentType === 'video') {
                 if (rItem.codecs) {
                     codecs = rItem.codecs;
                 }
@@ -693,14 +971,13 @@ function parser(xml, url) {
                 }
             }
             if (rItem.BaseURL) {
-                baseURL += rItem.BaseURL;
+                baseURL = joinPath(baseURL, common_util_is__WEBPACK_IMPORTED_MODULE_1__.string(rItem.BaseURL) ? rItem.BaseURL : rItem.BaseURL.value);
             }
-            let encrypted = false;
-            if (asItem.ContentProtection || rItem.ContentProtection) {
-                encrypted = true;
+            if (rItem.ContentProtection) {
+                protection = parseProtection(rItem.ContentProtection);
             }
             if (rItem.SegmentBase) {
-                if (mimeType === 'video/mp4') {
+                if (mimeType === 'video/mp4' || contentType === 'video') {
                     list.mediaList.video.push({
                         id: rItem.id,
                         file: baseURL,
@@ -716,10 +993,10 @@ function parser(xml, url) {
                         bandwidth,
                         timescale,
                         duration,
-                        encrypted
+                        protection
                     });
                 }
-                else if (mimeType === 'audio/mp4') {
+                else if (mimeType === 'audio/mp4' || contentType === 'audio') {
                     list.mediaList.audio.push({
                         id: rItem.id,
                         file: baseURL,
@@ -729,11 +1006,11 @@ function parser(xml, url) {
                         bandwidth,
                         timescale,
                         duration,
-                        encrypted,
+                        protection,
                         lang
                     });
                 }
-                else if (mimeType === 'application/mp4') {
+                else if (mimeType === 'application/mp4' || contentType === 'text') {
                     list.mediaList.subtitle.push({
                         id: rItem.id,
                         file: baseURL,
@@ -743,7 +1020,7 @@ function parser(xml, url) {
                         bandwidth,
                         timescale,
                         duration,
-                        encrypted,
+                        protection,
                         lang
                     });
                 }
@@ -757,17 +1034,32 @@ function parser(xml, url) {
                     ST = common_util_is__WEBPACK_IMPORTED_MODULE_1__.array(rItem.SegmentTemplate) ? rItem.SegmentTemplate[0] : rItem.SegmentTemplate;
                 }
                 if (ST) {
-                    const start = parseInt(ST.startNumber);
+                    let start = ST.startNumber ? parseInt(ST.startNumber) : 1;
                     initSegment = ST.initialization;
                     timescale = parseFloat(ST.timescale || '1');
                     if (ST.duration && !ST.SegmentTimeline) {
                         duration = parseFloat(ST.duration);
                         let segmentDuration = duration / timescale;
-                        const end = start + Math.ceil((list.duration || segmentDuration) / segmentDuration) - 1;
+                        let end = start + Math.ceil((list.duration || segmentDuration) / segmentDuration) - 1;
+                        let generateIndex = end;
+                        if (list.type === 'live' && (common_util_is__WEBPACK_IMPORTED_MODULE_1__.number(list.availabilityStartTime) || ST.presentationTimeOffset)) {
+                            const now = list.timestamp || (0,common_function_getTimestamp__WEBPACK_IMPORTED_MODULE_4__["default"])();
+                            const startTs = list.availabilityStartTime;
+                            const elapsed = ((now - startTs) / 1000) - (ST.presentationTimeOffset ? parseInt(ST.presentationTimeOffset) : 0);
+                            const segmentOffset = Math.floor(elapsed / segmentDuration);
+                            end = start + segmentOffset;
+                            if (list.timeShiftBufferDepth) {
+                                start = end - Math.ceil(list.timeShiftBufferDepth / segmentDuration) + 1;
+                            }
+                            generateIndex = end;
+                            if (ST.availabilityTimeComplete === 'false' || list.minimumUpdatePeriod > list.minBufferTime * 2) {
+                                end += Math.ceil(list.minimumUpdatePeriod / segmentDuration);
+                            }
+                        }
                         for (let i = start; i <= end; i++) {
                             const startTime = segmentDuration * (i - start);
                             let endTime = segmentDuration * (i - start + 1);
-                            if (i === end) {
+                            if (i === end && list.duration) {
                                 segmentDuration = list.duration - segmentDuration * (end - start);
                                 endTime = list.duration;
                             }
@@ -779,9 +1071,10 @@ function parser(xml, url) {
                                     if (s2) {
                                         return preFixInteger(i, +s2);
                                     }
-                                    return (0,common_function_toString__WEBPACK_IMPORTED_MODULE_2__["default"])(i);
+                                    return (0,common_function_toString__WEBPACK_IMPORTED_MODULE_3__["default"])(i);
                                 }),
-                                segmentDuration
+                                segmentDuration,
+                                pending: i > generateIndex
                             });
                         }
                     }
@@ -792,11 +1085,17 @@ function parser(xml, url) {
                         for (let i = 0; i < S.length; i++) {
                             let d = parseFloat(S[i].d);
                             if (S[i].t) {
-                                startTime = parseFloat(S[0].t);
+                                startTime = parseFloat(S[i].t);
                             }
                             let r = 1;
                             if (S[i].r) {
-                                r = parseInt(S[i].r) + 1;
+                                r = parseInt(S[i].r);
+                                if (r === -1 && duration) {
+                                    r = Math.ceil(duration * timescale / d);
+                                }
+                                else {
+                                    r += 1;
+                                }
                             }
                             for (let j = 0; j < r; j++) {
                                 mediaSegments.push({
@@ -808,9 +1107,9 @@ function parser(xml, url) {
                                         if (s2) {
                                             return preFixInteger(index, +s2);
                                         }
-                                        return (0,common_function_toString__WEBPACK_IMPORTED_MODULE_2__["default"])(index);
+                                        return (0,common_function_toString__WEBPACK_IMPORTED_MODULE_3__["default"])(index);
                                     })
-                                        .replace(/\$Time\$/g, (0,common_function_toString__WEBPACK_IMPORTED_MODULE_2__["default"])(startTime)),
+                                        .replace(/\$Time\$/g, (0,common_function_toString__WEBPACK_IMPORTED_MODULE_3__["default"])(startTime)),
                                     segmentDuration: d / timescale
                                 });
                                 index++;
@@ -834,11 +1133,11 @@ function parser(xml, url) {
                         startTime += duration;
                     }
                 }
-                if (mimeType === 'video/mp4') {
+                if (mimeType === 'video/mp4' || contentType === 'video') {
                     list.mediaList.video.push({
                         id: rItem.id,
                         baseURL,
-                        initSegment: baseURL + initSegment.replace(/\$RepresentationID\$/g, rItem.id).replace(/\$Bandwidth\$/g, (0,common_function_toString__WEBPACK_IMPORTED_MODULE_2__["default"])(bandwidth)),
+                        initSegment: baseURL + initSegment.replace(/\$RepresentationID\$/g, rItem.id).replace(/\$Bandwidth\$/g, (0,common_function_toString__WEBPACK_IMPORTED_MODULE_3__["default"])(bandwidth)),
                         mediaSegments,
                         mimeType,
                         codecs,
@@ -852,14 +1151,14 @@ function parser(xml, url) {
                         bandwidth,
                         timescale,
                         duration,
-                        encrypted
+                        protection
                     });
                 }
-                else if (mimeType === 'audio/mp4') {
+                else if (mimeType === 'audio/mp4' || contentType === 'audio') {
                     list.mediaList.audio.push({
                         id: rItem.id,
                         baseURL,
-                        initSegment: baseURL + initSegment.replace(/\$RepresentationID\$/g, rItem.id).replace(/\$Bandwidth\$/g, (0,common_function_toString__WEBPACK_IMPORTED_MODULE_2__["default"])(bandwidth)),
+                        initSegment: baseURL + initSegment.replace(/\$RepresentationID\$/g, rItem.id).replace(/\$Bandwidth\$/g, (0,common_function_toString__WEBPACK_IMPORTED_MODULE_3__["default"])(bandwidth)),
                         mediaSegments,
                         mimeType,
                         codecs,
@@ -867,15 +1166,15 @@ function parser(xml, url) {
                         bandwidth,
                         timescale,
                         duration,
-                        encrypted,
+                        protection,
                         lang
                     });
                 }
-                else if (mimeType === 'application/mp4') {
+                else if (mimeType === 'application/mp4' || contentType === 'text') {
                     list.mediaList.subtitle.push({
                         id: rItem.id,
                         baseURL,
-                        initSegment: baseURL + initSegment.replace(/\$RepresentationID\$/g, rItem.id).replace(/\$Bandwidth\$/g, (0,common_function_toString__WEBPACK_IMPORTED_MODULE_2__["default"])(bandwidth)),
+                        initSegment: baseURL + initSegment.replace(/\$RepresentationID\$/g, rItem.id).replace(/\$Bandwidth\$/g, (0,common_function_toString__WEBPACK_IMPORTED_MODULE_3__["default"])(bandwidth)),
                         mediaSegments,
                         mimeType,
                         codecs,
@@ -883,7 +1182,7 @@ function parser(xml, url) {
                         bandwidth,
                         timescale,
                         duration,
-                        encrypted,
+                        protection,
                         lang
                     });
                 }
@@ -896,6 +1195,78 @@ function parser(xml, url) {
         });
     });
     return list;
+}
+function parser(xml, url) {
+    const result = parseMPD(xml).MPD;
+    if (result.type === 'dynamic') {
+        const period = common_util_is__WEBPACK_IMPORTED_MODULE_1__.array(result.Period) ? result.Period[result.Period.length - 1] : result.Period;
+        return parsePeriod(result, period, url);
+    }
+    else {
+        const periods = common_util_is__WEBPACK_IMPORTED_MODULE_1__.array(result.Period) ? result.Period : [result.Period];
+        const list = periods.map((period) => {
+            return parsePeriod(result, period, url);
+        });
+        const mediaList = list[0];
+        for (let i = 1; i < list.length; i++) {
+            mediaList.duration += list[i].duration;
+            list[i].mediaList.video.forEach((video) => {
+                const prev = mediaList.mediaList.video.find((p) => {
+                    return video.initSegment && video.initSegment === p.initSegment || video.id === p.id;
+                });
+                if (prev) {
+                    if (prev.mediaSegments?.length && video.mediaSegments?.length) {
+                        video.mediaSegments.forEach((s) => {
+                            s.start += prev.mediaSegments[prev.mediaSegments.length - 1].end;
+                            s.end += prev.mediaSegments[prev.mediaSegments.length - 1].end;
+                        });
+                    }
+                    prev.mediaSegments = (prev.mediaSegments || []).concat(video.mediaSegments || []);
+                }
+                else {
+                    mediaList.mediaList.video.push(video);
+                }
+            });
+            list[i].mediaList.audio.forEach((audio) => {
+                const prev = mediaList.mediaList.audio.find((p) => {
+                    return audio.initSegment && audio.initSegment === p.initSegment || audio.id === p.id;
+                });
+                if (prev) {
+                    if (prev.mediaSegments?.length && audio.mediaSegments?.length) {
+                        audio.mediaSegments.forEach((s) => {
+                            s.start += prev.mediaSegments[prev.mediaSegments.length - 1].end;
+                            s.end += prev.mediaSegments[prev.mediaSegments.length - 1].end;
+                        });
+                    }
+                    prev.mediaSegments = (prev.mediaSegments || []).concat(audio.mediaSegments || []);
+                }
+                else {
+                    mediaList.mediaList.audio.push(audio);
+                }
+            });
+            list[i].mediaList.subtitle.forEach((subtitle) => {
+                const prev = mediaList.mediaList.subtitle.find((p) => {
+                    return subtitle.initSegment && subtitle.initSegment === p.initSegment || subtitle.id === p.id;
+                });
+                if (prev) {
+                    if (prev.mediaSegments?.length && subtitle.mediaSegments?.length) {
+                        subtitle.mediaSegments.forEach((s) => {
+                            s.start += prev.mediaSegments[prev.mediaSegments.length - 1].end;
+                            s.end += prev.mediaSegments[prev.mediaSegments.length - 1].end;
+                        });
+                    }
+                    prev.mediaSegments = (prev.mediaSegments || []).concat(subtitle.mediaSegments || []);
+                }
+                else {
+                    mediaList.mediaList.subtitle.push(subtitle);
+                }
+            });
+        }
+        if (result.mediaPresentationDuration) {
+            mediaList.duration = durationConvert(result.mediaPresentationDuration);
+        }
+        return mediaList;
+    }
 }
 
 
@@ -932,7 +1303,7 @@ function xml2Json(xmlStr, options = defaultOptions) {
         if (!item) {
             return;
         }
-        if (key !== options.aloneValueName && item.obj[options.aloneValueName] != null) {
+        if (key === options.aloneValueName && item.obj[options.aloneValueName] != null) {
             item.obj[options.aloneValueName] = [item.obj[options.aloneValueName], {
                     tagName: key,
                     ...value

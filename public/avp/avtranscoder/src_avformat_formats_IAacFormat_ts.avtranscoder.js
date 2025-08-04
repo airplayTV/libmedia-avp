@@ -53,20 +53,20 @@ class AVBSFilter {
 /* harmony export */ });
 /* harmony import */ var cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! cheap/ctypeEnumRead */ "./src/cheap/ctypeEnumRead.ts");
 /* harmony import */ var cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! cheap/ctypeEnumWrite */ "./src/cheap/ctypeEnumWrite.ts");
-/* harmony import */ var _avutil_struct_avcodecparameters_ts__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./..\..\..\avutil\struct\avcodecparameters.ts */ "./src/avutil/struct/avcodecparameters.ts");
+/* harmony import */ var _avutil_struct_avcodecparameters__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./..\..\..\avutil\struct\avcodecparameters */ "./src/avutil/struct/avcodecparameters.ts");
 /* harmony import */ var cheap_std_structAccess__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! cheap/std/structAccess */ "./src/cheap/std/structAccess.ts");
 /* harmony import */ var _AVBSFilter__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../AVBSFilter */ "./src/avformat/bsf/AVBSFilter.ts");
 /* harmony import */ var cheap_std_memory__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! cheap/std/memory */ "./src/cheap/std/memory.ts");
 /* harmony import */ var common_util_logger__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! common/util/logger */ "./src/common/util/logger.ts");
 /* harmony import */ var avutil_error__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! avutil/error */ "./src/avutil/error.ts");
 /* harmony import */ var avutil_constant__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! avutil/constant */ "./src/avutil/constant.ts");
-/* harmony import */ var _codecs_aac__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! ../../codecs/aac */ "./src/avformat/codecs/aac.ts");
+/* harmony import */ var avutil_codecs_aac__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! avutil/codecs/aac */ "./src/avutil/codecs/aac.ts");
 /* harmony import */ var avutil_util_rational__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! avutil/util/rational */ "./src/avutil/util/rational.ts");
 /* harmony import */ var avutil_util_mem__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! avutil/util/mem */ "./src/avutil/util/mem.ts");
 /* harmony import */ var avutil_util_avpacket__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(/*! avutil/util/avpacket */ "./src/avutil/util/avpacket.ts");
 /* harmony import */ var common_io_BitReader__WEBPACK_IMPORTED_MODULE_13__ = __webpack_require__(/*! common/io/BitReader */ "./src/common/io/BitReader.ts");
 /* harmony import */ var common_util_is__WEBPACK_IMPORTED_MODULE_14__ = __webpack_require__(/*! common/util/is */ "./src/common/util/is.ts");
-var cheap__fileName__4 = "src\\avformat\\bsf\\aac\\LATM2RawFilter.ts";
+const cheap__fileName__5 = "src\\avformat\\bsf\\aac\\LATM2RawFilter.ts";
 
 
 
@@ -103,12 +103,24 @@ class LATM2RawFilter extends _AVBSFilter__WEBPACK_IMPORTED_MODULE_4__["default"]
     sendAVPacket(avpacket) {
         const buffer = (0,cheap_std_memory__WEBPACK_IMPORTED_MODULE_5__.mapUint8Array)(cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[20](avpacket + 24), cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[15](avpacket + 28));
         this.bitReader.appendBuffer(buffer);
-        let lastDts = cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[17](avpacket + 16) || cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[17](avpacket + 8);
+        let lastDts = cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[17](avpacket + 16) !== avutil_constant__WEBPACK_IMPORTED_MODULE_8__.NOPTS_VALUE_BIGINT ? cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[17](avpacket + 16) : cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[17](avpacket + 8);
         while (this.bitReader.remainingLength() >= 20) {
             const now = this.bitReader.getPointer();
-            const info = _codecs_aac__WEBPACK_IMPORTED_MODULE_9__.parseLATMHeader(null, this.bitReader);
+            const info = avutil_codecs_aac__WEBPACK_IMPORTED_MODULE_9__.parseLATMHeader(null, this.bitReader);
             if (common_util_is__WEBPACK_IMPORTED_MODULE_14__.number(info)) {
-                common_util_logger__WEBPACK_IMPORTED_MODULE_6__.error('AACLATMParser parse failed', cheap__fileName__4, 94);
+                let synced = false;
+                while (this.bitReader.remainingLength() >= 20) {
+                    const syncWord = this.bitReader.peekU(11);
+                    if (syncWord === 0x2B7) {
+                        synced = true;
+                        break;
+                    }
+                    this.bitReader.readU1();
+                }
+                if (synced) {
+                    continue;
+                }
+                common_util_logger__WEBPACK_IMPORTED_MODULE_6__.error('AACLATMParser parse failed', cheap__fileName__5, 107);
                 this.bitReader.reset();
                 return avutil_error__WEBPACK_IMPORTED_MODULE_7__.DATA_INVALID;
             }
@@ -130,7 +142,8 @@ class LATM2RawFilter extends _AVBSFilter__WEBPACK_IMPORTED_MODULE_4__["default"]
             const item = {
                 dts: lastDts,
                 buffer: rawData,
-                extradata: null
+                extradata: null,
+                pos: cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[17](avpacket + 56)
             };
             const hasNewExtraData = cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[15](this.inCodecpar + 48) !== this.streamMuxConfig.profile
                 || cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[15](this.inCodecpar + 136) !== this.streamMuxConfig.sampleRate
@@ -140,7 +153,7 @@ class LATM2RawFilter extends _AVBSFilter__WEBPACK_IMPORTED_MODULE_4__["default"]
                 cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[15](this.inCodecpar + 48, this.streamMuxConfig.profile);
                 cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[15](this.inCodecpar + 136, this.streamMuxConfig.sampleRate);
                 cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[15](this.inCodecpar + 116, this.streamMuxConfig.channels);
-                const extradata = (0,_codecs_aac__WEBPACK_IMPORTED_MODULE_9__.avCodecParameters2Extradata)((0,cheap_std_structAccess__WEBPACK_IMPORTED_MODULE_3__["default"])(this.inCodecpar, _avutil_struct_avcodecparameters_ts__WEBPACK_IMPORTED_MODULE_2__["default"]));
+                const extradata = (0,avutil_codecs_aac__WEBPACK_IMPORTED_MODULE_9__.avCodecParameters2Extradata)((0,cheap_std_structAccess__WEBPACK_IMPORTED_MODULE_3__["default"])(this.inCodecpar, _avutil_struct_avcodecparameters__WEBPACK_IMPORTED_MODULE_2__["default"]));
                 if (cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[20](this.inCodecpar + 12)) {
                     (0,avutil_util_mem__WEBPACK_IMPORTED_MODULE_11__.avFree)(cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[20](this.inCodecpar + 12));
                 }
@@ -163,6 +176,7 @@ class LATM2RawFilter extends _AVBSFilter__WEBPACK_IMPORTED_MODULE_4__["default"]
             (0,cheap_std_memory__WEBPACK_IMPORTED_MODULE_5__.memcpyFromUint8Array)(data, item.buffer.length, item.buffer);
             (0,avutil_util_avpacket__WEBPACK_IMPORTED_MODULE_12__.addAVPacketData)(avpacket, data, item.buffer.length);
             cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[17](avpacket + 16, item.dts), cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[17](avpacket + 8, item.dts);
+            cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[17](avpacket + 56, item.pos);
             cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[15](avpacket + 36, cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[15](avpacket + 36) | 1 /* AVPacketFlags.AV_PKT_FLAG_KEY */);
             cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[17](avpacket + 48, this.refSampleDuration);
             if (item.extradata) {
@@ -178,6 +192,7 @@ class LATM2RawFilter extends _AVBSFilter__WEBPACK_IMPORTED_MODULE_4__["default"]
     }
     reset() {
         this.bitReader.reset();
+        this.caches.length = 0;
         return 0;
     }
 }
@@ -185,10 +200,811 @@ class LATM2RawFilter extends _AVBSFilter__WEBPACK_IMPORTED_MODULE_4__["default"]
 
 /***/ }),
 
-/***/ "./src/avformat/codecs/aac.ts":
-/*!************************************!*\
-  !*** ./src/avformat/codecs/aac.ts ***!
-  \************************************/
+/***/ "./src/avformat/formats/IAacFormat.ts":
+/*!********************************************!*\
+  !*** ./src/avformat/formats/IAacFormat.ts ***!
+  \********************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (/* binding */ IAacFormat)
+/* harmony export */ });
+/* harmony import */ var cheap_symbol__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! cheap/symbol */ "./src/cheap/symbol.ts");
+/* harmony import */ var cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! cheap/ctypeEnumRead */ "./src/cheap/ctypeEnumRead.ts");
+/* harmony import */ var cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! cheap/ctypeEnumWrite */ "./src/cheap/ctypeEnumWrite.ts");
+/* harmony import */ var common_util_logger__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! common/util/logger */ "./src/common/util/logger.ts");
+/* harmony import */ var avutil_error__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! avutil/error */ "./src/avutil/error.ts");
+/* harmony import */ var _IFormat__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./IFormat */ "./src/avformat/formats/IFormat.ts");
+/* harmony import */ var cheap_std_memory__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! cheap/std/memory */ "./src/cheap/std/memory.ts");
+/* harmony import */ var avutil_util_mem__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! avutil/util/mem */ "./src/avutil/util/mem.ts");
+/* harmony import */ var avutil_util_avpacket__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! avutil/util/avpacket */ "./src/avutil/util/avpacket.ts");
+/* harmony import */ var avutil_util_rational__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! avutil/util/rational */ "./src/avutil/util/rational.ts");
+/* harmony import */ var avutil_constant__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! avutil/constant */ "./src/avutil/constant.ts");
+/* harmony import */ var common_util_array__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! common/util/array */ "./src/common/util/array.ts");
+/* harmony import */ var avutil_codecs_aac__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(/*! avutil/codecs/aac */ "./src/avutil/codecs/aac.ts");
+/* harmony import */ var common_util_is__WEBPACK_IMPORTED_MODULE_13__ = __webpack_require__(/*! common/util/is */ "./src/common/util/is.ts");
+/* harmony import */ var _bsf_aac_LATM2RawFilter__WEBPACK_IMPORTED_MODULE_14__ = __webpack_require__(/*! ../bsf/aac/LATM2RawFilter */ "./src/avformat/bsf/aac/LATM2RawFilter.ts");
+/* harmony import */ var _mp3_id3v2__WEBPACK_IMPORTED_MODULE_15__ = __webpack_require__(/*! ./mp3/id3v2 */ "./src/avformat/formats/mp3/id3v2.ts");
+const cheap__fileName__29 = "src\\avformat\\formats\\IAacFormat.ts";
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+const PACKET_SIZE = 1024;
+class IAacFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_5__["default"] {
+    type = 15 /* AVFormat.AAC */;
+    frameType;
+    fileSize;
+    currentPts;
+    latmFilter;
+    encodeSampleRate;
+    constructor() {
+        super();
+    }
+    init(formatContext) {
+        this.currentPts = BigInt(0);
+    }
+    async destroy(formatContext) {
+        if (this.latmFilter) {
+            this.latmFilter.destroy();
+            this.latmFilter = null;
+        }
+    }
+    async estimateTotalBlock(formatContext) {
+        let duration = 0;
+        const now = formatContext.ioReader.getPos();
+        while (true) {
+            try {
+                const nextFrame = await formatContext.ioReader.peekBuffer(7);
+                const aacFrameLength = ((nextFrame[3] & 0x03) << 11)
+                    | (nextFrame[4] << 3)
+                    | ((nextFrame[5] & 0xE0) >>> 5);
+                const numberOfRawDataBlocksInFrame = nextFrame[6] & 0x03;
+                duration += (numberOfRawDataBlocksInFrame + 1);
+                await formatContext.ioReader.skip(aacFrameLength);
+            }
+            catch (error) {
+                break;
+            }
+        }
+        await formatContext.ioReader.seek(now);
+        return duration;
+    }
+    async parseTransportStreamTimestamp(formatContext) {
+        const hasID3 = (await formatContext.ioReader.peekString(3)) === 'ID3';
+        if (hasID3) {
+            await formatContext.ioReader.skip(3);
+            const id3v2Context = {
+                version: await formatContext.ioReader.readUint8(),
+                revision: await formatContext.ioReader.readUint8(),
+                flags: await formatContext.ioReader.readUint8()
+            };
+            const metadata = {};
+            const len = (((await formatContext.ioReader.readUint8()) & 0x7F) << 21)
+                | (((await formatContext.ioReader.readUint8()) & 0x7F) << 14)
+                | (((await formatContext.ioReader.readUint8()) & 0x7F) << 7)
+                | ((await formatContext.ioReader.readUint8()) & 0x7F);
+            await _mp3_id3v2__WEBPACK_IMPORTED_MODULE_15__.parse(formatContext.ioReader, len, id3v2Context, metadata);
+            if (common_util_is__WEBPACK_IMPORTED_MODULE_13__.bigint(metadata['com.apple.streaming.transportStreamTimestamp'])) {
+                return metadata['com.apple.streaming.transportStreamTimestamp'];
+            }
+        }
+    }
+    async readHeader(formatContext) {
+        let transportStreamTimestamp;
+        if (formatContext.ioReader.flags & 2 /* IOFlags.SLICE */) {
+            transportStreamTimestamp = await this.parseTransportStreamTimestamp(formatContext);
+        }
+        const signature = await formatContext.ioReader.peekBuffer(4);
+        this.fileSize = await formatContext.ioReader.fileSize();
+        // ADIF
+        if (signature[0] === 65 && signature[1] === 68 && signature[2] === 73 && signature[3] === 70) {
+            const stream = formatContext.createStream();
+            stream.codecpar.codecId = 86018 /* AVCodecID.AV_CODEC_ID_AAC */;
+            stream.codecpar.codecType = 1 /* AVMediaType.AVMEDIA_TYPE_AUDIO */;
+            this.frameType = 0 /* FrameType.ADIF */;
+            stream.duration = this.fileSize;
+            stream.timeBase.den = PACKET_SIZE * 16;
+            stream.timeBase.num = 1;
+        }
+        // ADTS
+        else if (signature[0] === 0xff && (signature[1] & 0xf0) === 0xf0) {
+            this.frameType = 1 /* FrameType.ADTS */;
+            const stream = formatContext.createStream();
+            stream.codecpar.codecId = 86018 /* AVCodecID.AV_CODEC_ID_AAC */;
+            stream.codecpar.codecType = 1 /* AVMediaType.AVMEDIA_TYPE_AUDIO */;
+            const info = (0,avutil_codecs_aac__WEBPACK_IMPORTED_MODULE_12__.parseADTSHeader)(await formatContext.ioReader.peekBuffer(20));
+            if (common_util_is__WEBPACK_IMPORTED_MODULE_13__.number(info)) {
+                return avutil_error__WEBPACK_IMPORTED_MODULE_4__.DATA_INVALID;
+            }
+            this.encodeSampleRate = info.sampleRate;
+            stream.codecpar.profile = info.profile;
+            stream.codecpar.sampleRate = info.sampleRate;
+            stream.codecpar.chLayout.nbChannels = info.channels;
+            const extradata = (0,avutil_codecs_aac__WEBPACK_IMPORTED_MODULE_12__.avCodecParameters2Extradata)(stream.codecpar);
+            stream.codecpar.extradata = (0,avutil_util_mem__WEBPACK_IMPORTED_MODULE_7__.avMalloc)(extradata.length);
+            (0,cheap_std_memory__WEBPACK_IMPORTED_MODULE_6__.memcpyFromUint8Array)(stream.codecpar.extradata, extradata.length, extradata);
+            stream.codecpar.extradataSize = extradata.length;
+            stream.timeBase.den = stream.codecpar.sampleRate;
+            stream.timeBase.num = 1;
+            if (!(formatContext.ioReader.flags & 2 /* IOFlags.SLICE */)) {
+                stream.duration = (0,avutil_util_rational__WEBPACK_IMPORTED_MODULE_9__.avRescaleQ)(BigInt(Math.floor((await this.estimateTotalBlock(formatContext)) * 1024 / this.encodeSampleRate * avutil_constant__WEBPACK_IMPORTED_MODULE_10__.AV_TIME_BASE)), avutil_constant__WEBPACK_IMPORTED_MODULE_10__.AV_TIME_BASE_Q, stream.timeBase);
+            }
+            else {
+                if (common_util_is__WEBPACK_IMPORTED_MODULE_13__.bigint(transportStreamTimestamp)) {
+                    this.currentPts = (0,avutil_util_rational__WEBPACK_IMPORTED_MODULE_9__.avRescaleQ)(transportStreamTimestamp, {
+                        num: 1,
+                        den: 90000
+                    }, stream.timeBase);
+                }
+            }
+        }
+        // LATM
+        else if (signature[0] === 0x56 && (signature[1] & 0xe0) === 0xe0) {
+            this.frameType = 2 /* FrameType.LATM */;
+            const stream = formatContext.createStream();
+            stream.codecpar.codecId = 86018 /* AVCodecID.AV_CODEC_ID_AAC */;
+            stream.codecpar.codecType = 1 /* AVMediaType.AVMEDIA_TYPE_AUDIO */;
+            const info = (0,avutil_codecs_aac__WEBPACK_IMPORTED_MODULE_12__.parseLATMHeader)(await formatContext.ioReader.peekBuffer(20));
+            if (common_util_is__WEBPACK_IMPORTED_MODULE_13__.number(info)) {
+                return avutil_error__WEBPACK_IMPORTED_MODULE_4__.DATA_INVALID;
+            }
+            stream.codecpar.profile = info.profile;
+            stream.codecpar.sampleRate = info.sampleRate;
+            stream.codecpar.chLayout.nbChannels = info.channels;
+            const extradata = (0,avutil_codecs_aac__WEBPACK_IMPORTED_MODULE_12__.avCodecParameters2Extradata)(stream.codecpar);
+            stream.codecpar.extradata = (0,avutil_util_mem__WEBPACK_IMPORTED_MODULE_7__.avMalloc)(extradata.length);
+            (0,cheap_std_memory__WEBPACK_IMPORTED_MODULE_6__.memcpyFromUint8Array)(stream.codecpar.extradata, extradata.length, extradata);
+            stream.codecpar.extradataSize = extradata.length;
+            stream.duration = this.fileSize;
+            stream.timeBase.den = PACKET_SIZE * 16;
+            stream.timeBase.num = 1;
+            this.latmFilter = new _bsf_aac_LATM2RawFilter__WEBPACK_IMPORTED_MODULE_14__["default"]();
+            this.latmFilter.init(stream.codecpar[cheap_symbol__WEBPACK_IMPORTED_MODULE_0__.symbolStructAddress], stream.timeBase[cheap_symbol__WEBPACK_IMPORTED_MODULE_0__.symbolStructAddress]);
+        }
+        else {
+            return avutil_error__WEBPACK_IMPORTED_MODULE_4__.DATA_INVALID;
+        }
+        return 0;
+    }
+    async readAVPacket(formatContext, avpacket) {
+        const stream = formatContext.streams.find((stream) => {
+            return stream.codecpar.codecType = 1 /* AVMediaType.AVMEDIA_TYPE_AUDIO */;
+        });
+        try {
+            if (formatContext.ioReader.flags & 2 /* IOFlags.SLICE */) {
+                let transportStreamTimestamp = await this.parseTransportStreamTimestamp(formatContext);
+                if (common_util_is__WEBPACK_IMPORTED_MODULE_13__.bigint(transportStreamTimestamp)) {
+                    this.currentPts = (0,avutil_util_rational__WEBPACK_IMPORTED_MODULE_9__.avRescaleQ)(transportStreamTimestamp, {
+                        num: 1,
+                        den: 90000
+                    }, stream.timeBase);
+                }
+            }
+            const now = formatContext.ioReader.getPos();
+            let nextFrame;
+            if (this.frameType === 0 /* FrameType.ADIF */) {
+                nextFrame = await formatContext.ioReader.readBuffer(Math.min(PACKET_SIZE, Number(BigInt.asIntN(32, this.fileSize - now))));
+                const data = (0,avutil_util_mem__WEBPACK_IMPORTED_MODULE_7__.avMalloc)(nextFrame.length);
+                (0,cheap_std_memory__WEBPACK_IMPORTED_MODULE_6__.memcpyFromUint8Array)(data, nextFrame.length, nextFrame);
+                (0,avutil_util_avpacket__WEBPACK_IMPORTED_MODULE_8__.addAVPacketData)(avpacket, data, nextFrame.length);
+                cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_2__.CTypeEnumWrite[17](avpacket + 48, BigInt(PACKET_SIZE));
+                cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_2__.CTypeEnumWrite[17](avpacket + 56, now);
+            }
+            else if (this.frameType === 1 /* FrameType.ADTS */) {
+                const header = await formatContext.ioReader.readBuffer(7);
+                const protectionAbsent = header[1] & 0x01;
+                const aacFrameLength = ((header[3] & 0x03) << 11)
+                    | (header[4] << 3)
+                    | ((header[5] & 0xE0) >>> 5);
+                const numberOfRawDataBlocksInFrame = header[6] & 0x03;
+                let adtsHeaderLength = protectionAbsent === 1 ? 7 : 9;
+                let adtsFramePayloadLength = aacFrameLength - adtsHeaderLength;
+                if (adtsHeaderLength === 9) {
+                    await formatContext.ioReader.skip(2);
+                }
+                const duration = (0,avutil_util_rational__WEBPACK_IMPORTED_MODULE_9__.avRescaleQ)(BigInt(Math.floor((numberOfRawDataBlocksInFrame + 1) * 1024 / this.encodeSampleRate * avutil_constant__WEBPACK_IMPORTED_MODULE_10__.AV_TIME_BASE)), avutil_constant__WEBPACK_IMPORTED_MODULE_10__.AV_TIME_BASE_Q, stream.timeBase);
+                cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_2__.CTypeEnumWrite[17](avpacket + 48, duration);
+                nextFrame = await formatContext.ioReader.readBuffer(adtsFramePayloadLength);
+                const data = (0,avutil_util_mem__WEBPACK_IMPORTED_MODULE_7__.avMalloc)(nextFrame.length);
+                (0,cheap_std_memory__WEBPACK_IMPORTED_MODULE_6__.memcpyFromUint8Array)(data, nextFrame.length, nextFrame);
+                (0,avutil_util_avpacket__WEBPACK_IMPORTED_MODULE_8__.addAVPacketData)(avpacket, data, nextFrame.length);
+                cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_2__.CTypeEnumWrite[17](avpacket + 56, now);
+            }
+            else if (this.frameType === 2 /* FrameType.LATM */) {
+                if (now === this.fileSize) {
+                    return -1048576 /* IOError.END */;
+                }
+                while (true) {
+                    let ret = this.latmFilter.receiveAVPacket(avpacket);
+                    if (ret === avutil_error__WEBPACK_IMPORTED_MODULE_4__.EOF) {
+                        if (formatContext.ioReader.getPos() === this.fileSize) {
+                            return -1048576 /* IOError.END */;
+                        }
+                        nextFrame = await formatContext.ioReader.readBuffer(Math.min(PACKET_SIZE, Number(BigInt.asIntN(32, this.fileSize - now))));
+                        const data = (0,avutil_util_mem__WEBPACK_IMPORTED_MODULE_7__.avMalloc)(nextFrame.length);
+                        (0,cheap_std_memory__WEBPACK_IMPORTED_MODULE_6__.memcpyFromUint8Array)(data, nextFrame.length, nextFrame);
+                        (0,avutil_util_avpacket__WEBPACK_IMPORTED_MODULE_8__.addAVPacketData)(avpacket, data, nextFrame.length);
+                        this.latmFilter.sendAVPacket(avpacket);
+                        continue;
+                    }
+                    else if (ret < 0) {
+                        return ret;
+                    }
+                    else {
+                        cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_2__.CTypeEnumWrite[17](avpacket + 48, BigInt(cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumRead[15](avpacket + 28) >> 0));
+                        cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_2__.CTypeEnumWrite[17](avpacket + 56, this.currentPts);
+                        break;
+                    }
+                }
+            }
+            cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_2__.CTypeEnumWrite[15](avpacket + 32, stream.index);
+            cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_2__.CTypeEnumWrite[15](avpacket + 76, stream.timeBase.den);
+            cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_2__.CTypeEnumWrite[15](avpacket + 72, stream.timeBase.num);
+            cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_2__.CTypeEnumWrite[17](avpacket + 16, this.currentPts), cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_2__.CTypeEnumWrite[17](avpacket + 8, this.currentPts);
+            cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_2__.CTypeEnumWrite[15](avpacket + 36, cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumRead[15](avpacket + 36) | 1 /* AVPacketFlags.AV_PKT_FLAG_KEY */);
+            this.currentPts += cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumRead[17](avpacket + 48);
+            return 0;
+        }
+        catch (error) {
+            if (formatContext.ioReader.error !== -1048576 /* IOError.END */
+                && formatContext.ioReader.error !== -1048572 /* IOError.ABORT */) {
+                common_util_logger__WEBPACK_IMPORTED_MODULE_3__.error(`read packet error, ${error}`, cheap__fileName__29, 337);
+                return avutil_error__WEBPACK_IMPORTED_MODULE_4__.DATA_INVALID;
+            }
+            return formatContext.ioReader.error;
+        }
+    }
+    async syncFrame(formatContext) {
+        if (this.frameType === 0 /* FrameType.ADIF */) {
+            return;
+        }
+        let pos = avutil_constant__WEBPACK_IMPORTED_MODULE_10__.NOPTS_VALUE_BIGINT;
+        const analyzeCount = 3;
+        const syncWord = this.frameType === 1 /* FrameType.ADTS */ ? 0xFFF : 0x2B7;
+        const shift = this.frameType === 1 /* FrameType.ADTS */ ? 4 : 5;
+        while (true) {
+            try {
+                let count = 0;
+                pos = formatContext.ioReader.getPos();
+                while (true) {
+                    if (count === analyzeCount) {
+                        break;
+                    }
+                    const word = (await formatContext.ioReader.peekUint16()) >>> shift;
+                    if (word === syncWord) {
+                        const info = this.frameType === 1 /* FrameType.ADTS */
+                            ? (0,avutil_codecs_aac__WEBPACK_IMPORTED_MODULE_12__.parseADTSHeader)(await formatContext.ioReader.peekBuffer(9))
+                            : (0,avutil_codecs_aac__WEBPACK_IMPORTED_MODULE_12__.parseLATMHeader)(await formatContext.ioReader.peekBuffer(20));
+                        if (!common_util_is__WEBPACK_IMPORTED_MODULE_13__.number(info)) {
+                            count++;
+                            await formatContext.ioReader.skip(info.headerLength + info.framePayloadLength);
+                            continue;
+                        }
+                        else {
+                            break;
+                        }
+                    }
+                    else {
+                        break;
+                    }
+                }
+                if (count === analyzeCount) {
+                    break;
+                }
+                await formatContext.ioReader.skip(1);
+            }
+            catch (error) {
+                break;
+            }
+        }
+        if (pos !== avutil_constant__WEBPACK_IMPORTED_MODULE_10__.NOPTS_VALUE_BIGINT) {
+            await formatContext.ioReader.seek(pos);
+        }
+    }
+    async seek(formatContext, stream, timestamp, flags) {
+        if (flags & 16 /* AVSeekFlags.TIMESTAMP */ && (formatContext.ioReader.flags & 2 /* IOFlags.SLICE */)) {
+            const seekTime = (0,avutil_util_rational__WEBPACK_IMPORTED_MODULE_9__.avRescaleQ)(timestamp, stream.timeBase, avutil_constant__WEBPACK_IMPORTED_MODULE_10__.AV_MILLI_TIME_BASE_Q);
+            await formatContext.ioReader.seek(seekTime, true);
+            this.currentPts = timestamp;
+            return BigInt(0);
+        }
+        if (this.frameType === 1 /* FrameType.ADTS */) {
+            const now = formatContext.ioReader.getPos();
+            if (flags & 2 /* AVSeekFlags.BYTE */) {
+                const size = await formatContext.ioReader.fileSize();
+                if (size <= BigInt(0)) {
+                    return BigInt(avutil_error__WEBPACK_IMPORTED_MODULE_4__.FORMAT_NOT_SUPPORT);
+                }
+                if (timestamp < BigInt(0)) {
+                    timestamp = BigInt(0);
+                }
+                else if (timestamp > size) {
+                    timestamp = size;
+                }
+                await formatContext.ioReader.seek(timestamp);
+                if (!(flags & 4 /* AVSeekFlags.ANY */)) {
+                    await this.syncFrame(formatContext);
+                    if (stream.duration && this.fileSize) {
+                        this.currentPts = timestamp / this.fileSize * stream.duration;
+                    }
+                }
+                return now;
+            }
+            else {
+                if (stream && stream.sampleIndexes.length) {
+                    let index = common_util_array__WEBPACK_IMPORTED_MODULE_11__.binarySearch(stream.sampleIndexes, (item) => {
+                        if (item.pts > timestamp) {
+                            return -1;
+                        }
+                        return 1;
+                    });
+                    if (index > 0 && (0,avutil_util_rational__WEBPACK_IMPORTED_MODULE_9__.avRescaleQ)(timestamp - stream.sampleIndexes[index - 1].pts, stream.timeBase, avutil_constant__WEBPACK_IMPORTED_MODULE_10__.AV_MILLI_TIME_BASE_Q) < BigInt(5000)) {
+                        common_util_logger__WEBPACK_IMPORTED_MODULE_3__.debug(`seek in sampleIndexes, found index: ${index}, pts: ${stream.sampleIndexes[index - 1].pts}, pos: ${stream.sampleIndexes[index - 1].pos}`, cheap__fileName__29, 443);
+                        await formatContext.ioReader.seek(stream.sampleIndexes[index - 1].pos);
+                        this.currentPts = timestamp;
+                        return now;
+                    }
+                }
+                common_util_logger__WEBPACK_IMPORTED_MODULE_3__.debug('not found any keyframe index, try to seek in bytes', cheap__fileName__29, 450);
+                if (stream.duration) {
+                    await formatContext.ioReader.seek(BigInt(0));
+                    let pts = BigInt(0);
+                    while (true) {
+                        try {
+                            if (pts >= timestamp) {
+                                this.currentPts = pts;
+                                return now;
+                            }
+                            const nextFrame = await formatContext.ioReader.peekBuffer(7);
+                            const aacFrameLength = ((nextFrame[3] & 0x03) << 11)
+                                | (nextFrame[4] << 3)
+                                | ((nextFrame[5] & 0xE0) >>> 5);
+                            const numberOfRawDataBlocksInFrame = nextFrame[6] & 0x03;
+                            const duration = (0,avutil_util_rational__WEBPACK_IMPORTED_MODULE_9__.avRescaleQ)(BigInt(Math.floor((numberOfRawDataBlocksInFrame + 1) * 1024 / this.encodeSampleRate * avutil_constant__WEBPACK_IMPORTED_MODULE_10__.AV_TIME_BASE)), avutil_constant__WEBPACK_IMPORTED_MODULE_10__.AV_TIME_BASE_Q, stream.timeBase);
+                            pts += duration;
+                            await formatContext.ioReader.skip(aacFrameLength);
+                        }
+                        catch (error) {
+                            return BigInt(avutil_error__WEBPACK_IMPORTED_MODULE_4__.FORMAT_NOT_SUPPORT);
+                        }
+                    }
+                }
+                else {
+                    return BigInt(avutil_error__WEBPACK_IMPORTED_MODULE_4__.FORMAT_NOT_SUPPORT);
+                }
+            }
+        }
+        else if (this.frameType === 0 /* FrameType.ADIF */ || this.frameType === 2 /* FrameType.LATM */) {
+            if (this.latmFilter) {
+                this.latmFilter.reset();
+            }
+            const now = formatContext.ioReader.getPos();
+            if (timestamp < BigInt(0)) {
+                timestamp = BigInt(0);
+            }
+            else if (timestamp > this.fileSize) {
+                timestamp = this.fileSize;
+            }
+            await formatContext.ioReader.seek(timestamp);
+            this.currentPts = timestamp;
+            if (this.frameType === 2 /* FrameType.LATM */ && !(flags & 4 /* AVSeekFlags.ANY */)) {
+                await this.syncFrame(formatContext);
+            }
+            return now;
+        }
+        return BigInt(avutil_error__WEBPACK_IMPORTED_MODULE_4__.FORMAT_NOT_SUPPORT);
+    }
+    getAnalyzeStreamsCount() {
+        return 1;
+    }
+}
+
+
+/***/ }),
+
+/***/ "./src/avformat/formats/IFormat.ts":
+/*!*****************************************!*\
+  !*** ./src/avformat/formats/IFormat.ts ***!
+  \*****************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (/* binding */ IFormat)
+/* harmony export */ });
+/*
+ * libmedia abstract format decoder
+ *
+ * 版权所有 (C) 2024 赵高兴
+ * Copyright (C) 2024 Gaoxing Zhao
+ *
+ * 此文件是 libmedia 的一部分
+ * This file is part of libmedia.
+ *
+ * libmedia 是自由软件；您可以根据 GNU Lesser General Public License（GNU LGPL）3.1
+ * 或任何其更新的版本条款重新分发或修改它
+ * libmedia is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3.1 of the License, or (at your option) any later version.
+ *
+ * libmedia 希望能够为您提供帮助，但不提供任何明示或暗示的担保，包括但不限于适销性或特定用途的保证
+ * 您应自行承担使用 libmedia 的风险，并且需要遵守 GNU Lesser General Public License 中的条款和条件。
+ * libmedia is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ */
+class IFormat {
+    type = -1 /* AVFormat.UNKNOWN */;
+    onStreamAdd;
+    async destroy(formatContext) { }
+}
+
+
+/***/ }),
+
+/***/ "./src/avformat/formats/mp3/id3v2.ts":
+/*!*******************************************!*\
+  !*** ./src/avformat/formats/mp3/id3v2.ts ***!
+  \*******************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   parse: () => (/* binding */ parse),
+/* harmony export */   write: () => (/* binding */ write)
+/* harmony export */ });
+/* harmony import */ var common_util_logger__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! common/util/logger */ "./src/common/util/logger.ts");
+/* harmony import */ var common_util_text__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! common/util/text */ "./src/common/util/text.ts");
+const cheap__fileName__0 = "src\\avformat\\formats\\mp3\\id3v2.ts";
+
+
+async function getSize(ioReader, len) {
+    let v = 0;
+    while (len--) {
+        v = (v << 7) + ((await ioReader.readUint8()) & 0x7F);
+    }
+    return v;
+}
+function putSize(ioWriter, size) {
+    ioWriter.writeUint8(size >> 21 & 0x7f);
+    ioWriter.writeUint8(size >> 14 & 0x7f);
+    ioWriter.writeUint8(size >> 7 & 0x7f);
+    ioWriter.writeUint8(size & 0x7f);
+}
+function decodeString(encoding, buffer) {
+    let label = 'utf-8';
+    if (encoding === 0 /* ID3v2Encoding.ISO8859 */) {
+        label = 'iso-8859-1';
+    }
+    else if (encoding === 1 /* ID3v2Encoding.UTF16BOM */) {
+        label = 'utf-16';
+    }
+    else if (encoding === 2 /* ID3v2Encoding.UTF16BE */) {
+        label = 'utf-16be';
+    }
+    const decoder = new TextDecoder(label);
+    return decoder.decode(buffer);
+}
+async function parse(ioReader, len, id3v2, metadata) {
+    const isV34 = id3v2.version !== 2;
+    const tagHeaderLen = isV34 ? 10 : 6;
+    let end = ioReader.getPos() + BigInt(len >> 0);
+    async function error() {
+        await ioReader.seek(end);
+    }
+    if (isV34 && (id3v2.flags & 0x40)) {
+        let extLen = await getSize(ioReader, 4);
+        if (id3v2.version === 4) {
+            // in v2.4 the length includes the length field we just read.
+            extLen -= 4;
+        }
+        if (extLen < 0) {
+            common_util_logger__WEBPACK_IMPORTED_MODULE_0__.error('invalid extended header length', cheap__fileName__0, 88);
+            return await error();
+        }
+        await ioReader.skip(extLen);
+        len -= extLen + 4;
+        if (len < 0) {
+            common_util_logger__WEBPACK_IMPORTED_MODULE_0__.error('extended header too long', cheap__fileName__0, 94);
+            await ioReader.seek(end);
+            return await error();
+        }
+    }
+    while (len > tagHeaderLen) {
+        let type;
+        let size;
+        if (isV34) {
+            type = await ioReader.readString(4);
+            size = await ioReader.readUint32();
+            if (!size) {
+                common_util_logger__WEBPACK_IMPORTED_MODULE_0__.error('invalid frame size', cheap__fileName__0, 108);
+                break;
+            }
+            // flags
+            await ioReader.readUint16();
+        }
+        else {
+            type = await ioReader.readString(3);
+            size = await ioReader.readUint24();
+        }
+        if (type === 'APIC') {
+            metadata.poster = await ioReader.readBuffer(size);
+        }
+        else if (type === 'USLT') {
+            const encoding = await ioReader.readUint8();
+            const language = await ioReader.readString(3);
+            const buffer = await ioReader.readBuffer(size - 4);
+            metadata.lyrics = `${language} ${decodeString(encoding, buffer)}`;
+        }
+        else if (type === 'COMM' || type === 'COM') {
+            const encoding = await ioReader.readUint8();
+            const language = await ioReader.readString(3);
+            const buffer = await ioReader.readBuffer(size - 4);
+            metadata.comment = `${language} ${decodeString(encoding, buffer)}`;
+        }
+        else if (type === 'PRIV') {
+            const pos = ioReader.getPos();
+            const items = [];
+            while (true) {
+                const c = await ioReader.readUint8();
+                if (c === 0) {
+                    break;
+                }
+                items.push(c);
+            }
+            const identifier = common_util_text__WEBPACK_IMPORTED_MODULE_1__.decode(new Uint8Array(items));
+            let value;
+            if (identifier === 'com.apple.streaming.transportStreamTimestamp') {
+                value = await ioReader.readUint64();
+            }
+            else {
+                value = await ioReader.readBuffer(size - Number(ioReader.getPos() - pos));
+            }
+            metadata[identifier] = value;
+        }
+        else {
+            let content;
+            if (type[0] === 'T') {
+                const encoding = await ioReader.readUint8();
+                const buffer = await ioReader.readBuffer(size - 1);
+                content = decodeString(encoding, buffer);
+            }
+            else {
+                // @ts-ignore
+                content = await ioReader.readBuffer(size);
+            }
+            switch (type) {
+                case 'TIT2':
+                case 'TT2':
+                    metadata.title = content;
+                    break;
+                case 'TPE1':
+                case 'TP1':
+                    metadata.artist = content;
+                    break;
+                case 'TPE2':
+                case 'TP2':
+                    metadata.albumArtist = content;
+                    break;
+                case 'TPOS':
+                    metadata.disc = content;
+                    break;
+                case 'TCOP':
+                    metadata.copyright = content;
+                    break;
+                case 'TALB':
+                case 'TAL':
+                    metadata.album = content;
+                    break;
+                case 'TRCK':
+                case 'TRK':
+                    metadata.track = content;
+                    break;
+                case 'TYER':
+                case 'TDRL':
+                case 'TDRC':
+                    metadata.date = content;
+                    break;
+                case 'COMM':
+                case 'COM':
+                    metadata.comment = content;
+                    break;
+                case 'TCON':
+                case 'TCO':
+                    metadata.genre = content;
+                    break;
+                case 'TSSE':
+                case 'TEN':
+                    metadata.encoder = content;
+                    break;
+                case 'TCOM':
+                    metadata.composer = content;
+                    break;
+                case 'TENC':
+                    metadata.vendor = content;
+                    break;
+                case 'TLAN':
+                    metadata.language = content;
+                    break;
+                case 'TPE3':
+                case 'TP3':
+                    metadata.performer = content;
+                    break;
+                case 'TPUB':
+                    metadata.publisher = content;
+                    break;
+                case 'TCMP':
+                case 'TCP':
+                    metadata.compilation = content;
+                    break;
+                case 'TDEN':
+                    metadata.creationTime = content;
+                    break;
+                case 'TSOA':
+                    metadata.albumSort = content;
+                    break;
+                case 'TSOP':
+                    metadata.artistSort = content;
+                    break;
+                case 'TSOT':
+                    metadata.titleSort = content;
+                    break;
+                case 'TIT1':
+                    metadata.grouping = content;
+                    break;
+                default:
+                    metadata[type] = content;
+                    break;
+            }
+        }
+        len -= size + tagHeaderLen;
+    }
+    // footer preset, always 10 bytes, skip over it
+    if (id3v2.version == 4 && id3v2.flags & 0x10) {
+        end += BigInt(10);
+    }
+    await ioReader.seek(end);
+}
+function write(ioWriter, version, padding, metadata) {
+    let now = ioWriter.getPos();
+    ioWriter.writeString('ID3');
+    ioWriter.writeUint8(version);
+    ioWriter.writeUint16(0);
+    const sizePos = ioWriter.getPos();
+    ioWriter.writeUint32(0);
+    const enc = 3 /* ID3v2Encoding.UTF8 */;
+    function writeText(key, str) {
+        const buffer = common_util_text__WEBPACK_IMPORTED_MODULE_1__.encode(str);
+        ioWriter.writeString(key);
+        ioWriter.writeUint32(buffer.length + 1);
+        // flags
+        ioWriter.writeUint16(0);
+        ioWriter.writeUint8(enc);
+        ioWriter.writeBuffer(buffer);
+    }
+    function writeBuffer(key, buffer) {
+        ioWriter.writeString(key);
+        ioWriter.writeUint32(buffer.length);
+        // flags
+        ioWriter.writeUint16(0);
+        ioWriter.writeBuffer(buffer);
+    }
+    if (metadata.poster) {
+        writeBuffer('APIC', metadata.poster);
+    }
+    if (metadata.title) {
+        writeText('TIT2', metadata.title);
+    }
+    if (metadata.artist) {
+        writeText('TPE1', metadata.artist);
+    }
+    if (metadata.albumArtist) {
+        writeText('TPE2', metadata.albumArtist);
+    }
+    if (metadata.disc) {
+        writeText('TPOS', metadata.disc);
+    }
+    if (metadata.copyright) {
+        writeText('TCOP', metadata.copyright);
+    }
+    if (metadata.album) {
+        writeText('TALB', metadata.album);
+    }
+    if (metadata.track) {
+        writeText('TRCK', metadata.track);
+    }
+    if (metadata.date) {
+        writeText('TDRC', metadata.date);
+    }
+    if (metadata.comment) {
+        let comment = metadata.comment;
+        if (comment[3] === ' ') {
+            comment = comment.slice(0, 3) + comment.slice(4);
+        }
+        writeText('COMM', comment);
+    }
+    if (metadata.lyrics) {
+        let lyrics = metadata.lyrics;
+        if (lyrics[3] === ' ') {
+            lyrics = lyrics.slice(0, 3) + lyrics.slice(4);
+        }
+        writeText('USLT', lyrics);
+    }
+    if (metadata.genre) {
+        writeText('TCON', metadata.genre + '');
+    }
+    if (metadata.encoder) {
+        writeText('TSSE', metadata.encoder);
+    }
+    if (metadata.composer) {
+        writeText('TCOM', metadata.composer);
+    }
+    if (metadata.vendor) {
+        writeText('TENC', metadata.vendor);
+    }
+    if (metadata.language) {
+        writeText('TLAN', metadata.language);
+    }
+    if (metadata.performer) {
+        writeText('TPE3', metadata.performer);
+    }
+    if (metadata.publisher) {
+        writeText('TPUB', metadata.publisher);
+    }
+    if (metadata.compilation) {
+        writeText('TCMP', metadata.compilation);
+    }
+    if (metadata.creationTime) {
+        writeText('TDEN', metadata.creationTime);
+    }
+    if (metadata.albumSort) {
+        writeText('TSOA', metadata.albumSort);
+    }
+    if (metadata.artistSort) {
+        writeText('TSOP', metadata.artistSort);
+    }
+    if (metadata.titleSort) {
+        writeText('TSOT', metadata.titleSort);
+    }
+    if (metadata.grouping) {
+        writeText('TIT1', metadata.grouping);
+    }
+    if (padding < 10) {
+        padding = 10;
+    }
+    const len = Number(BigInt.asIntN(32, ioWriter.getPos() - now));
+    if (padding > 268435455 - len) {
+        padding = 268435455 - len;
+    }
+    ioWriter.writeBuffer(new Uint8Array(padding).fill(0));
+    now = ioWriter.getPos();
+    ioWriter.seek(sizePos);
+    putSize(ioWriter, len);
+    ioWriter.seek(now);
+}
+
+
+/***/ }),
+
+/***/ "./src/avutil/codecs/aac.ts":
+/*!**********************************!*\
+  !*** ./src/avutil/codecs/aac.ts ***!
+  \**********************************/
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
@@ -201,7 +1017,7 @@ class LATM2RawFilter extends _AVBSFilter__WEBPACK_IMPORTED_MODULE_4__["default"]
 /* harmony export */   parseLATMHeader: () => (/* binding */ parseLATMHeader)
 /* harmony export */ });
 /* unused harmony exports MPEG4SamplingFrequencies, MPEG4Channels */
-/* harmony import */ var avutil_constant__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! avutil/constant */ "./src/avutil/constant.ts");
+/* harmony import */ var _constant__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../constant */ "./src/avutil/constant.ts");
 /* harmony import */ var common_io_BitReader__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! common/io/BitReader */ "./src/common/io/BitReader.ts");
 /*
  * libmedia aac util
@@ -232,10 +1048,13 @@ class LATM2RawFilter extends _AVBSFilter__WEBPACK_IMPORTED_MODULE_4__["default"]
 const AACProfile2Name = {
     [1 /* MPEG4AudioObjectTypes.AAC_MAIN */]: 'Main',
     [2 /* MPEG4AudioObjectTypes.AAC_LC */]: 'LC',
-    [3 /* MPEG4AudioObjectTypes.AAC_SSR */]: 'LC',
-    [4 /* MPEG4AudioObjectTypes.AAC_LTP */]: 'LC',
+    [3 /* MPEG4AudioObjectTypes.AAC_SSR */]: 'SSR',
+    [4 /* MPEG4AudioObjectTypes.AAC_LTP */]: 'LTP',
     [5 /* MPEG4AudioObjectTypes.AAC_SBR */]: 'HE',
-    [6 /* MPEG4AudioObjectTypes.AAC_SCALABLE */]: 'HE'
+    [6 /* MPEG4AudioObjectTypes.AAC_SCALABLE */]: 'SCALABLE',
+    [29 /* MPEG4AudioObjectTypes.AAC_PS */]: 'HEv2',
+    [23 /* MPEG4AudioObjectTypes.AAC_LD */]: 'LD',
+    [39 /* MPEG4AudioObjectTypes.AAC_ELD */]: 'ELD'
 };
 const MPEG4SamplingFrequencyIndex = {
     96000: 0,
@@ -266,12 +1085,12 @@ const MPEG4SamplingFrequencies = [
     11025,
     8000,
     7350,
-    avutil_constant__WEBPACK_IMPORTED_MODULE_0__.NOPTS_VALUE,
-    avutil_constant__WEBPACK_IMPORTED_MODULE_0__.NOPTS_VALUE,
-    avutil_constant__WEBPACK_IMPORTED_MODULE_0__.NOPTS_VALUE
+    _constant__WEBPACK_IMPORTED_MODULE_0__.NOPTS_VALUE,
+    _constant__WEBPACK_IMPORTED_MODULE_0__.NOPTS_VALUE,
+    _constant__WEBPACK_IMPORTED_MODULE_0__.NOPTS_VALUE
 ];
 const MPEG4Channels = [
-    avutil_constant__WEBPACK_IMPORTED_MODULE_0__.NOPTS_VALUE,
+    _constant__WEBPACK_IMPORTED_MODULE_0__.NOPTS_VALUE,
     1,
     2,
     3,
@@ -297,14 +1116,14 @@ const MPEG4Channels = [
  *
  */
 function getAVCodecParameters(extradata) {
-    let profile = avutil_constant__WEBPACK_IMPORTED_MODULE_0__.NOPTS_VALUE;
-    let sampleRate = avutil_constant__WEBPACK_IMPORTED_MODULE_0__.NOPTS_VALUE;
-    let channels = avutil_constant__WEBPACK_IMPORTED_MODULE_0__.NOPTS_VALUE;
+    let profile = _constant__WEBPACK_IMPORTED_MODULE_0__.NOPTS_VALUE;
+    let sampleRate = _constant__WEBPACK_IMPORTED_MODULE_0__.NOPTS_VALUE;
+    let channels = _constant__WEBPACK_IMPORTED_MODULE_0__.NOPTS_VALUE;
     if (extradata.length >= 2) {
         profile = (extradata[0] >> 3) & 0x1f;
         sampleRate = MPEG4SamplingFrequencies[((extradata[0] & 0x07) << 1)
-            | (extradata[1] >> 7)] ?? 48000;
-        channels = MPEG4Channels[(extradata[1] >> 3) & 0x0f] ?? 2;
+            | (extradata[1] >> 7)];
+        channels = MPEG4Channels[(extradata[1] >> 3) & 0x0f];
     }
     return {
         profile,
@@ -321,13 +1140,16 @@ function parseAVCodecParameters(stream, extradata) {
         stream.codecpar.profile = profile;
         stream.codecpar.sampleRate = sampleRate;
         stream.codecpar.chLayout.nbChannels = channels;
+        stream.codecpar.frameSize = profile === 5 /* MPEG4AudioObjectTypes.AAC_SBR */ ? 2048 : 1024;
+        stream.codecpar.format = 8 /* AVSampleFormat.AV_SAMPLE_FMT_FLTP */;
     }
 }
 function avCodecParameters2Extradata(codecpar) {
     const samplingFreqIndex = MPEG4SamplingFrequencyIndex[codecpar.sampleRate];
     const channelConfig = codecpar.chLayout.nbChannels;
+    const profile = codecpar.profile === _constant__WEBPACK_IMPORTED_MODULE_0__.NOPTS_VALUE ? 2 /* MPEG4AudioObjectTypes.AAC_LC */ : codecpar.profile;
     const extradata = new Uint8Array(2);
-    extradata[0] = ((codecpar.profile & 0x1f) << 3) | ((samplingFreqIndex & 0x0e) >> 1);
+    extradata[0] = ((profile & 0x1f) << 3) | ((samplingFreqIndex & 0x0e) >> 1);
     extradata[1] = ((samplingFreqIndex & 0x01) << 7) | ((channelConfig & 0x0f) << 3);
     return extradata;
 }
@@ -503,409 +1325,6 @@ function parseLATMHeader(buffer, bitReader) {
     info.framePayloadLength = length;
     info.headerLength = bitReader.getPointer() - now + (bitReader.getBitLeft() === 8 ? 0 : 1);
     return info;
-}
-
-
-/***/ }),
-
-/***/ "./src/avformat/formats/IAacFormat.ts":
-/*!********************************************!*\
-  !*** ./src/avformat/formats/IAacFormat.ts ***!
-  \********************************************/
-/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
-
-__webpack_require__.r(__webpack_exports__);
-/* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   "default": () => (/* binding */ IAacFormat)
-/* harmony export */ });
-/* harmony import */ var cheap_symbol__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! cheap/symbol */ "./src/cheap/symbol.ts");
-/* harmony import */ var cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! cheap/ctypeEnumRead */ "./src/cheap/ctypeEnumRead.ts");
-/* harmony import */ var cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! cheap/ctypeEnumWrite */ "./src/cheap/ctypeEnumWrite.ts");
-/* harmony import */ var common_util_logger__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! common/util/logger */ "./src/common/util/logger.ts");
-/* harmony import */ var avutil_error__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! avutil/error */ "./src/avutil/error.ts");
-/* harmony import */ var _IFormat__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./IFormat */ "./src/avformat/formats/IFormat.ts");
-/* harmony import */ var cheap_std_memory__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! cheap/std/memory */ "./src/cheap/std/memory.ts");
-/* harmony import */ var avutil_util_mem__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! avutil/util/mem */ "./src/avutil/util/mem.ts");
-/* harmony import */ var avutil_util_avpacket__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! avutil/util/avpacket */ "./src/avutil/util/avpacket.ts");
-/* harmony import */ var avutil_util_rational__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! avutil/util/rational */ "./src/avutil/util/rational.ts");
-/* harmony import */ var avutil_constant__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! avutil/constant */ "./src/avutil/constant.ts");
-/* harmony import */ var common_util_array__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! common/util/array */ "./src/common/util/array.ts");
-/* harmony import */ var _codecs_aac__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(/*! ../codecs/aac */ "./src/avformat/codecs/aac.ts");
-/* harmony import */ var common_util_is__WEBPACK_IMPORTED_MODULE_13__ = __webpack_require__(/*! common/util/is */ "./src/common/util/is.ts");
-/* harmony import */ var _bsf_aac_LATM2RawFilter__WEBPACK_IMPORTED_MODULE_14__ = __webpack_require__(/*! ../bsf/aac/LATM2RawFilter */ "./src/avformat/bsf/aac/LATM2RawFilter.ts");
-var cheap__fileName__26 = "src\\avformat\\formats\\IAacFormat.ts";
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-const PACKET_SIZE = 1024;
-class IAacFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_5__["default"] {
-    type = 15 /* AVFormat.AAC */;
-    frameType;
-    fileSize;
-    currentPts;
-    latmFilter;
-    constructor() {
-        super();
-    }
-    init(formatContext) {
-        this.currentPts = BigInt(0);
-    }
-    async destroy(formatContext) {
-        if (this.latmFilter) {
-            this.latmFilter.destroy();
-            this.latmFilter = null;
-        }
-    }
-    async estimateTotalBlock(formatContext) {
-        let duration = 0;
-        const now = formatContext.ioReader.getPos();
-        while (true) {
-            try {
-                const nextFrame = await formatContext.ioReader.peekBuffer(7);
-                const aacFrameLength = ((nextFrame[3] & 0x03) << 11)
-                    | (nextFrame[4] << 3)
-                    | ((nextFrame[5] & 0xE0) >>> 5);
-                const numberOfRawDataBlocksInFrame = nextFrame[6] & 0x03;
-                duration += (numberOfRawDataBlocksInFrame + 1);
-                await formatContext.ioReader.skip(aacFrameLength);
-            }
-            catch (error) {
-                break;
-            }
-        }
-        await formatContext.ioReader.seek(now);
-        return duration;
-    }
-    async readHeader(formatContext) {
-        const signature = await formatContext.ioReader.peekBuffer(4);
-        this.fileSize = await formatContext.ioReader.fileSize();
-        // ADIF
-        if (signature[0] === 65 && signature[1] === 68 && signature[2] === 73 && signature[3] === 70) {
-            const stream = formatContext.createStream();
-            stream.codecpar.codecId = 86018 /* AVCodecID.AV_CODEC_ID_AAC */;
-            stream.codecpar.codecType = 1 /* AVMediaType.AVMEDIA_TYPE_AUDIO */;
-            this.frameType = 0 /* FrameType.ADIF */;
-            stream.duration = this.fileSize;
-            stream.timeBase.den = PACKET_SIZE * 16;
-            stream.timeBase.num = 1;
-        }
-        // ADTS
-        else if (signature[0] === 0xff && (signature[1] & 0xf0) === 0xf0) {
-            this.frameType = 1 /* FrameType.ADTS */;
-            const stream = formatContext.createStream();
-            stream.codecpar.codecId = 86018 /* AVCodecID.AV_CODEC_ID_AAC */;
-            stream.codecpar.codecType = 1 /* AVMediaType.AVMEDIA_TYPE_AUDIO */;
-            const info = (0,_codecs_aac__WEBPACK_IMPORTED_MODULE_12__.parseADTSHeader)(await formatContext.ioReader.peekBuffer(20));
-            if (common_util_is__WEBPACK_IMPORTED_MODULE_13__.number(info)) {
-                return avutil_error__WEBPACK_IMPORTED_MODULE_4__.DATA_INVALID;
-            }
-            stream.codecpar.profile = info.profile;
-            stream.codecpar.sampleRate = info.sampleRate;
-            stream.codecpar.chLayout.nbChannels = info.channels;
-            const extradata = (0,_codecs_aac__WEBPACK_IMPORTED_MODULE_12__.avCodecParameters2Extradata)(stream.codecpar);
-            stream.codecpar.extradata = (0,avutil_util_mem__WEBPACK_IMPORTED_MODULE_7__.avMalloc)(extradata.length);
-            (0,cheap_std_memory__WEBPACK_IMPORTED_MODULE_6__.memcpyFromUint8Array)(stream.codecpar.extradata, extradata.length, extradata);
-            stream.codecpar.extradataSize = extradata.length;
-            stream.timeBase.den = stream.codecpar.sampleRate;
-            stream.timeBase.num = 1;
-            stream.duration = (0,avutil_util_rational__WEBPACK_IMPORTED_MODULE_9__.avRescaleQ)(BigInt(Math.floor((await this.estimateTotalBlock(formatContext)) * 1024 / stream.codecpar.sampleRate * avutil_constant__WEBPACK_IMPORTED_MODULE_10__.AV_TIME_BASE)), avutil_constant__WEBPACK_IMPORTED_MODULE_10__.AV_TIME_BASE_Q, stream.timeBase);
-        }
-        // LATM
-        else if (signature[0] === 0x56 && (signature[1] & 0xe0) === 0xe0) {
-            this.frameType = 2 /* FrameType.LATM */;
-            const stream = formatContext.createStream();
-            stream.codecpar.codecId = 86018 /* AVCodecID.AV_CODEC_ID_AAC */;
-            stream.codecpar.codecType = 1 /* AVMediaType.AVMEDIA_TYPE_AUDIO */;
-            const info = (0,_codecs_aac__WEBPACK_IMPORTED_MODULE_12__.parseLATMHeader)(await formatContext.ioReader.peekBuffer(20));
-            if (common_util_is__WEBPACK_IMPORTED_MODULE_13__.number(info)) {
-                return avutil_error__WEBPACK_IMPORTED_MODULE_4__.DATA_INVALID;
-            }
-            stream.codecpar.profile = info.profile;
-            stream.codecpar.sampleRate = info.sampleRate;
-            stream.codecpar.chLayout.nbChannels = info.channels;
-            const extradata = (0,_codecs_aac__WEBPACK_IMPORTED_MODULE_12__.avCodecParameters2Extradata)(stream.codecpar);
-            stream.codecpar.extradata = (0,avutil_util_mem__WEBPACK_IMPORTED_MODULE_7__.avMalloc)(extradata.length);
-            (0,cheap_std_memory__WEBPACK_IMPORTED_MODULE_6__.memcpyFromUint8Array)(stream.codecpar.extradata, extradata.length, extradata);
-            stream.codecpar.extradataSize = extradata.length;
-            stream.duration = this.fileSize;
-            stream.timeBase.den = PACKET_SIZE * 16;
-            stream.timeBase.num = 1;
-            this.latmFilter = new _bsf_aac_LATM2RawFilter__WEBPACK_IMPORTED_MODULE_14__["default"]();
-            this.latmFilter.init(stream.codecpar[cheap_symbol__WEBPACK_IMPORTED_MODULE_0__.symbolStructAddress], stream.timeBase[cheap_symbol__WEBPACK_IMPORTED_MODULE_0__.symbolStructAddress]);
-        }
-        else {
-            return avutil_error__WEBPACK_IMPORTED_MODULE_4__.DATA_INVALID;
-        }
-        return 0;
-    }
-    async readAVPacket(formatContext, avpacket) {
-        const stream = formatContext.streams.find((stream) => {
-            return stream.codecpar.codecType = 1 /* AVMediaType.AVMEDIA_TYPE_AUDIO */;
-        });
-        try {
-            const now = formatContext.ioReader.getPos();
-            let nextFrame;
-            if (this.frameType === 0 /* FrameType.ADIF */) {
-                nextFrame = await formatContext.ioReader.readBuffer(Math.min(PACKET_SIZE, Number(BigInt.asIntN(32, this.fileSize - now))));
-                const data = (0,avutil_util_mem__WEBPACK_IMPORTED_MODULE_7__.avMalloc)(nextFrame.length);
-                (0,cheap_std_memory__WEBPACK_IMPORTED_MODULE_6__.memcpyFromUint8Array)(data, nextFrame.length, nextFrame);
-                (0,avutil_util_avpacket__WEBPACK_IMPORTED_MODULE_8__.addAVPacketData)(avpacket, data, nextFrame.length);
-                cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_2__.CTypeEnumWrite[17](avpacket + 48, BigInt(PACKET_SIZE));
-                cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_2__.CTypeEnumWrite[17](avpacket + 56, now);
-            }
-            else if (this.frameType === 1 /* FrameType.ADTS */) {
-                const header = await formatContext.ioReader.readBuffer(7);
-                const protectionAbsent = header[1] & 0x01;
-                const aacFrameLength = ((header[3] & 0x03) << 11)
-                    | (header[4] << 3)
-                    | ((header[5] & 0xE0) >>> 5);
-                const numberOfRawDataBlocksInFrame = header[6] & 0x03;
-                let adtsHeaderLength = protectionAbsent === 1 ? 7 : 9;
-                let adtsFramePayloadLength = aacFrameLength - adtsHeaderLength;
-                if (adtsHeaderLength === 9) {
-                    await formatContext.ioReader.skip(2);
-                }
-                const duration = (0,avutil_util_rational__WEBPACK_IMPORTED_MODULE_9__.avRescaleQ)(BigInt(Math.floor((numberOfRawDataBlocksInFrame + 1) * 1024 / stream.codecpar.sampleRate * avutil_constant__WEBPACK_IMPORTED_MODULE_10__.AV_TIME_BASE)), avutil_constant__WEBPACK_IMPORTED_MODULE_10__.AV_TIME_BASE_Q, stream.timeBase);
-                cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_2__.CTypeEnumWrite[17](avpacket + 48, duration);
-                nextFrame = await formatContext.ioReader.readBuffer(adtsFramePayloadLength);
-                const data = (0,avutil_util_mem__WEBPACK_IMPORTED_MODULE_7__.avMalloc)(nextFrame.length);
-                (0,cheap_std_memory__WEBPACK_IMPORTED_MODULE_6__.memcpyFromUint8Array)(data, nextFrame.length, nextFrame);
-                (0,avutil_util_avpacket__WEBPACK_IMPORTED_MODULE_8__.addAVPacketData)(avpacket, data, nextFrame.length);
-                cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_2__.CTypeEnumWrite[17](avpacket + 56, now);
-            }
-            else if (this.frameType === 2 /* FrameType.LATM */) {
-                if (now === this.fileSize) {
-                    return -1048576 /* IOError.END */;
-                }
-                while (true) {
-                    let ret = this.latmFilter.receiveAVPacket(avpacket);
-                    if (ret === avutil_error__WEBPACK_IMPORTED_MODULE_4__.EOF) {
-                        if (formatContext.ioReader.getPos() === this.fileSize) {
-                            return -1048576 /* IOError.END */;
-                        }
-                        nextFrame = await formatContext.ioReader.readBuffer(Math.min(PACKET_SIZE, Number(BigInt.asIntN(32, this.fileSize - now))));
-                        const data = (0,avutil_util_mem__WEBPACK_IMPORTED_MODULE_7__.avMalloc)(nextFrame.length);
-                        (0,cheap_std_memory__WEBPACK_IMPORTED_MODULE_6__.memcpyFromUint8Array)(data, nextFrame.length, nextFrame);
-                        (0,avutil_util_avpacket__WEBPACK_IMPORTED_MODULE_8__.addAVPacketData)(avpacket, data, nextFrame.length);
-                        this.latmFilter.sendAVPacket(avpacket);
-                        continue;
-                    }
-                    else if (ret < 0) {
-                        return ret;
-                    }
-                    else {
-                        cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_2__.CTypeEnumWrite[17](avpacket + 48, BigInt(cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumRead[15](avpacket + 28) >> 0));
-                        cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_2__.CTypeEnumWrite[17](avpacket + 56, this.currentPts);
-                        break;
-                    }
-                }
-            }
-            cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_2__.CTypeEnumWrite[15](avpacket + 32, stream.index);
-            cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_2__.CTypeEnumWrite[15](avpacket + 76, stream.timeBase.den);
-            cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_2__.CTypeEnumWrite[15](avpacket + 72, stream.timeBase.num);
-            cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_2__.CTypeEnumWrite[17](avpacket + 16, this.currentPts), cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_2__.CTypeEnumWrite[17](avpacket + 8, this.currentPts);
-            this.currentPts += cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumRead[17](avpacket + 48);
-            return 0;
-        }
-        catch (error) {
-            if (formatContext.ioReader.error !== -1048576 /* IOError.END */) {
-                common_util_logger__WEBPACK_IMPORTED_MODULE_3__.error(`read packet error, ${error}`, cheap__fileName__26, 271);
-                return avutil_error__WEBPACK_IMPORTED_MODULE_4__.DATA_INVALID;
-            }
-            return formatContext.ioReader.error;
-        }
-    }
-    async syncFrame(formatContext) {
-        if (this.frameType === 0 /* FrameType.ADIF */) {
-            return;
-        }
-        let pos = avutil_constant__WEBPACK_IMPORTED_MODULE_10__.NOPTS_VALUE_BIGINT;
-        const analyzeCount = 3;
-        const syncWord = this.frameType === 1 /* FrameType.ADTS */ ? 0xFFF : 0x2B7;
-        const shift = this.frameType === 1 /* FrameType.ADTS */ ? 4 : 5;
-        while (true) {
-            try {
-                let count = 0;
-                pos = formatContext.ioReader.getPos();
-                while (true) {
-                    if (count === analyzeCount) {
-                        break;
-                    }
-                    const word = (await formatContext.ioReader.peekUint16()) >>> shift;
-                    if (word === syncWord) {
-                        const info = this.frameType === 1 /* FrameType.ADTS */
-                            ? (0,_codecs_aac__WEBPACK_IMPORTED_MODULE_12__.parseADTSHeader)(await formatContext.ioReader.peekBuffer(9))
-                            : (0,_codecs_aac__WEBPACK_IMPORTED_MODULE_12__.parseLATMHeader)(await formatContext.ioReader.peekBuffer(20));
-                        if (!common_util_is__WEBPACK_IMPORTED_MODULE_13__.number(info)) {
-                            count++;
-                            await formatContext.ioReader.skip(info.headerLength + info.framePayloadLength);
-                            continue;
-                        }
-                        else {
-                            break;
-                        }
-                    }
-                    else {
-                        break;
-                    }
-                }
-                if (count === analyzeCount) {
-                    break;
-                }
-                await formatContext.ioReader.skip(1);
-            }
-            catch (error) {
-                break;
-            }
-        }
-        if (pos !== avutil_constant__WEBPACK_IMPORTED_MODULE_10__.NOPTS_VALUE_BIGINT) {
-            await formatContext.ioReader.seek(pos);
-        }
-    }
-    async seek(formatContext, stream, timestamp, flags) {
-        if (this.frameType === 1 /* FrameType.ADTS */) {
-            const now = formatContext.ioReader.getPos();
-            if (flags & 2 /* AVSeekFlags.BYTE */) {
-                const size = await formatContext.ioReader.fileSize();
-                if (size <= BigInt(0)) {
-                    return BigInt(avutil_error__WEBPACK_IMPORTED_MODULE_4__.FORMAT_NOT_SUPPORT);
-                }
-                if (timestamp < BigInt(0)) {
-                    timestamp = BigInt(0);
-                }
-                else if (timestamp > size) {
-                    timestamp = size;
-                }
-                await formatContext.ioReader.seek(timestamp);
-                if (!(flags & 4 /* AVSeekFlags.ANY */)) {
-                    await this.syncFrame(formatContext);
-                    if (stream.duration && this.fileSize) {
-                        this.currentPts = timestamp / this.fileSize * stream.duration;
-                    }
-                }
-                return now;
-            }
-            else {
-                if (stream && stream.sampleIndexes.length) {
-                    let index = common_util_array__WEBPACK_IMPORTED_MODULE_11__.binarySearch(stream.sampleIndexes, (item) => {
-                        if (item.pts > timestamp) {
-                            return -1;
-                        }
-                        return 1;
-                    });
-                    if (index > 0 && (0,avutil_util_rational__WEBPACK_IMPORTED_MODULE_9__.avRescaleQ)(timestamp - stream.sampleIndexes[index - 1].pts, stream.timeBase, avutil_constant__WEBPACK_IMPORTED_MODULE_10__.AV_MILLI_TIME_BASE_Q) < BigInt(5000)) {
-                        common_util_logger__WEBPACK_IMPORTED_MODULE_3__.debug(`seek in sampleIndexes, found index: ${index}, pts: ${stream.sampleIndexes[index - 1].pts}, pos: ${stream.sampleIndexes[index - 1].pos}`, cheap__fileName__26, 370);
-                        await formatContext.ioReader.seek(stream.sampleIndexes[index - 1].pos);
-                        this.currentPts = timestamp;
-                        return now;
-                    }
-                }
-                common_util_logger__WEBPACK_IMPORTED_MODULE_3__.debug('not found any keyframe index, try to seek in bytes', cheap__fileName__26, 377);
-                if (stream.duration) {
-                    await formatContext.ioReader.seek(BigInt(0));
-                    let pts = BigInt(0);
-                    while (true) {
-                        try {
-                            if (pts >= timestamp) {
-                                this.currentPts = pts;
-                                return now;
-                            }
-                            const nextFrame = await formatContext.ioReader.peekBuffer(7);
-                            const aacFrameLength = ((nextFrame[3] & 0x03) << 11)
-                                | (nextFrame[4] << 3)
-                                | ((nextFrame[5] & 0xE0) >>> 5);
-                            const numberOfRawDataBlocksInFrame = nextFrame[6] & 0x03;
-                            const duration = (0,avutil_util_rational__WEBPACK_IMPORTED_MODULE_9__.avRescaleQ)(BigInt(Math.floor((numberOfRawDataBlocksInFrame + 1) * 1024 / stream.codecpar.sampleRate * avutil_constant__WEBPACK_IMPORTED_MODULE_10__.AV_TIME_BASE)), avutil_constant__WEBPACK_IMPORTED_MODULE_10__.AV_TIME_BASE_Q, stream.timeBase);
-                            pts += duration;
-                            await formatContext.ioReader.skip(aacFrameLength);
-                        }
-                        catch (error) {
-                            return BigInt(avutil_error__WEBPACK_IMPORTED_MODULE_4__.FORMAT_NOT_SUPPORT);
-                        }
-                    }
-                }
-                else {
-                    return BigInt(avutil_error__WEBPACK_IMPORTED_MODULE_4__.FORMAT_NOT_SUPPORT);
-                }
-            }
-        }
-        else if (this.frameType === 0 /* FrameType.ADIF */ || this.frameType === 2 /* FrameType.LATM */) {
-            if (this.latmFilter) {
-                this.latmFilter.reset();
-            }
-            const now = formatContext.ioReader.getPos();
-            if (timestamp < BigInt(0)) {
-                timestamp = BigInt(0);
-            }
-            else if (timestamp > this.fileSize) {
-                timestamp = this.fileSize;
-            }
-            await formatContext.ioReader.seek(timestamp);
-            this.currentPts = timestamp;
-            if (this.frameType === 2 /* FrameType.LATM */ && !(flags & 4 /* AVSeekFlags.ANY */)) {
-                await this.syncFrame(formatContext);
-            }
-            return now;
-        }
-        return BigInt(avutil_error__WEBPACK_IMPORTED_MODULE_4__.FORMAT_NOT_SUPPORT);
-    }
-    getAnalyzeStreamsCount() {
-        return 1;
-    }
-}
-
-
-/***/ }),
-
-/***/ "./src/avformat/formats/IFormat.ts":
-/*!*****************************************!*\
-  !*** ./src/avformat/formats/IFormat.ts ***!
-  \*****************************************/
-/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
-
-/* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   "default": () => (/* binding */ IFormat)
-/* harmony export */ });
-/*
- * libmedia abstract format decoder
- *
- * 版权所有 (C) 2024 赵高兴
- * Copyright (C) 2024 Gaoxing Zhao
- *
- * 此文件是 libmedia 的一部分
- * This file is part of libmedia.
- *
- * libmedia 是自由软件；您可以根据 GNU Lesser General Public License（GNU LGPL）3.1
- * 或任何其更新的版本条款重新分发或修改它
- * libmedia is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 3.1 of the License, or (at your option) any later version.
- *
- * libmedia 希望能够为您提供帮助，但不提供任何明示或暗示的担保，包括但不限于适销性或特定用途的保证
- * 您应自行承担使用 libmedia 的风险，并且需要遵守 GNU Lesser General Public License 中的条款和条件。
- * libmedia is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- */
-class IFormat {
-    type = -1 /* AVFormat.UNKNOWN */;
-    onStreamAdd;
-    async destroy(formatContext) { }
 }
 
 

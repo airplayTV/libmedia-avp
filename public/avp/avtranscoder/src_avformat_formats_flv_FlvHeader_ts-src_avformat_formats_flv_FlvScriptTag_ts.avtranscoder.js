@@ -103,16 +103,12 @@ class FlvHeader {
 /* harmony export */   "default": () => (/* binding */ FlvScriptTag)
 /* harmony export */ });
 /* harmony import */ var common_io_IOWriterSync__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! common/io/IOWriterSync */ "./src/common/io/IOWriterSync.ts");
-/* harmony import */ var common_util_is__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! common/util/is */ "./src/common/util/is.ts");
-/* harmony import */ var common_util_array__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! common/util/array */ "./src/common/util/array.ts");
-/* harmony import */ var common_util_object__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! common/util/object */ "./src/common/util/object.ts");
-/* harmony import */ var common_function_concatTypeArray__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! common/function/concatTypeArray */ "./src/common/function/concatTypeArray.ts");
-/* harmony import */ var common_util_logger__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! common/util/logger */ "./src/common/util/logger.ts");
-/* harmony import */ var _oflv__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ./oflv */ "./src/avformat/formats/flv/oflv.ts");
-/* harmony import */ var avutil_error__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! avutil/error */ "./src/avutil/error.ts");
-var cheap__fileName__0 = "src\\avformat\\formats\\flv\\FlvScriptTag.ts";
-
-
+/* harmony import */ var common_function_concatTypeArray__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! common/function/concatTypeArray */ "./src/common/function/concatTypeArray.ts");
+/* harmony import */ var common_util_logger__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! common/util/logger */ "./src/common/util/logger.ts");
+/* harmony import */ var _oflv__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./oflv */ "./src/avformat/formats/flv/oflv.ts");
+/* harmony import */ var avutil_error__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! avutil/error */ "./src/avutil/error.ts");
+/* harmony import */ var avutil_util_amf__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! avutil/util/amf */ "./src/avutil/util/amf.ts");
+const cheap__fileName__0 = "src\\avformat\\formats\\flv\\FlvScriptTag.ts";
 
 
 
@@ -123,158 +119,25 @@ class FlvScriptTag {
     onMetaData;
     constructor() {
         this.onMetaData = {
-            audiocodecid: 10,
-            canSeekToEnd: false,
-            width: 0,
-            height: 0,
-            stereo: true,
-            videocodecid: 7
+            canSeekToEnd: false
         };
-    }
-    async parseObject(ioReader, endPos) {
-        const key = await ioReader.readString(await ioReader.readUint16());
-        const value = await this.parseValue(ioReader, endPos);
-        return {
-            key,
-            value
-        };
-    }
-    async parseValue(ioReader, endPos) {
-        const type = await ioReader.readUint8();
-        let value;
-        switch (type) {
-            // double
-            case 0:
-                value = await ioReader.readDouble();
-                break;
-            // boolean
-            case 1:
-                value = await ioReader.readUint8() ? true : false;
-                break;
-            // string
-            case 2:
-                value = await ioReader.readString(await ioReader.readUint16());
-                break;
-            // object
-            case 3:
-                value = {};
-                while (ioReader.getPos() < endPos) {
-                    const { key, value: val } = await this.parseObject(ioReader, endPos);
-                    value[key] = val;
-                    if (((await ioReader.peekUint24()) & 0x00FFFFFF) === 9) {
-                        await ioReader.skip(3);
-                        break;
-                    }
-                }
-                break;
-            // ECMA array type (Mixed array)
-            case 8:
-                value = {};
-                // skip ECMAArrayLength(UI32)
-                await ioReader.skip(4);
-                while (ioReader.getPos() < endPos) {
-                    const { key, value: val } = await this.parseObject(ioReader, endPos);
-                    value[key] = val;
-                    if (((await ioReader.peekUint24()) & 0x00FFFFFF) === 9) {
-                        await ioReader.skip(3);
-                        break;
-                    }
-                }
-                break;
-            // ScriptDataObjectEnd
-            case 9:
-                value = null;
-                break;
-            // Strict array type
-            case 10:
-                value = [];
-                const length = await ioReader.readUint32();
-                for (let i = 0; i < length; i++) {
-                    value.push(await this.parseValue(ioReader, endPos));
-                }
-                break;
-            // Date
-            case 11:
-                const timestamp = await ioReader.readDouble();
-                const localTimeOffset = await ioReader.readInt16();
-                value = new Date(timestamp + localTimeOffset * 60 * 1000);
-                break;
-            // Long string type
-            case 12:
-                value = await ioReader.readString(await ioReader.readUint32());
-                break;
-            default:
-        }
-        return value;
     }
     async read(ioReader, size) {
         const now = ioReader.getPos();
         const endPos = now + BigInt(Math.floor(size));
-        const key = await this.parseValue(ioReader, endPos);
-        const value = await this.parseValue(ioReader, endPos);
+        const key = await (0,avutil_util_amf__WEBPACK_IMPORTED_MODULE_5__.parseValue)(ioReader, endPos);
+        const value = await (0,avutil_util_amf__WEBPACK_IMPORTED_MODULE_5__.parseValue)(ioReader, endPos);
         this[key] = value;
+        if (endPos > ioReader.getPos()) {
+            await ioReader.skip(Number(BigInt.asIntN(32, endPos - ioReader.getPos())));
+        }
         const tagSize = Number(ioReader.getPos() - now);
         const prev = await ioReader.readUint32();
         if (tagSize + 11 !== prev) {
-            common_util_logger__WEBPACK_IMPORTED_MODULE_5__.warn(`script size not match, size: ${tagSize + 11}, previousTagSize: ${prev}`, cheap__fileName__0, 150);
-            return avutil_error__WEBPACK_IMPORTED_MODULE_7__.DATA_INVALID;
+            common_util_logger__WEBPACK_IMPORTED_MODULE_2__.warn(`script size not match, size: ${tagSize + 11}, previousTagSize: ${prev}`, cheap__fileName__0, 63);
+            return avutil_error__WEBPACK_IMPORTED_MODULE_4__.DATA_INVALID;
         }
         return 0;
-    }
-    writeValue(ioWriter, value) {
-        // double
-        if (common_util_is__WEBPACK_IMPORTED_MODULE_1__.number(value)) {
-            ioWriter.writeUint8(0);
-            ioWriter.writeDouble(value);
-        }
-        else if (common_util_is__WEBPACK_IMPORTED_MODULE_1__.bigint(value)) {
-            ioWriter.writeUint8(0);
-            ioWriter.writeDouble(Number(value));
-        }
-        // boolean
-        else if (common_util_is__WEBPACK_IMPORTED_MODULE_1__.boolean(value)) {
-            ioWriter.writeUint8(1);
-            ioWriter.writeUint8(value ? 1 : 0);
-        }
-        // string
-        else if (common_util_is__WEBPACK_IMPORTED_MODULE_1__.string(value)) {
-            // long string
-            if (value.length >= 65536) {
-                ioWriter.writeUint8(12);
-                ioWriter.writeUint32(value.length);
-                ioWriter.writeString(value);
-            }
-            // string
-            else {
-                ioWriter.writeUint8(2);
-                ioWriter.writeUint16(value.length);
-                ioWriter.writeString(value);
-            }
-        }
-        // array type
-        else if (common_util_is__WEBPACK_IMPORTED_MODULE_1__.array(value)) {
-            ioWriter.writeUint8(10);
-            ioWriter.writeUint32(value.length);
-            common_util_array__WEBPACK_IMPORTED_MODULE_2__.each(value, (value) => {
-                this.writeValue(ioWriter, value);
-            });
-        }
-        // object
-        else if (common_util_is__WEBPACK_IMPORTED_MODULE_1__.object(value)) {
-            ioWriter.writeUint8(3);
-            common_util_object__WEBPACK_IMPORTED_MODULE_3__.each(value, (item, key) => {
-                ioWriter.writeUint16(key.length);
-                ioWriter.writeString(key);
-                this.writeValue(ioWriter, item);
-            });
-            // object end flag
-            ioWriter.writeUint24(9);
-        }
-        else if (value instanceof Date) {
-            ioWriter.writeUint8(11);
-            ioWriter.writeDouble(value.getTime());
-            ioWriter.writeInt16(0);
-        }
     }
     computeSize() {
         const cache = [];
@@ -283,10 +146,10 @@ class FlvScriptTag {
             cache.push(data.slice());
             return 0;
         };
-        this.writeValue(cacheWriter, 'onMetaData');
-        this.writeValue(cacheWriter, this.onMetaData);
+        (0,avutil_util_amf__WEBPACK_IMPORTED_MODULE_5__.writeValue)(cacheWriter, 'onMetaData');
+        (0,avutil_util_amf__WEBPACK_IMPORTED_MODULE_5__.writeValue)(cacheWriter, this.onMetaData);
         cacheWriter.flush();
-        const buffer = (0,common_function_concatTypeArray__WEBPACK_IMPORTED_MODULE_4__["default"])(Uint8Array, cache);
+        const buffer = (0,common_function_concatTypeArray__WEBPACK_IMPORTED_MODULE_1__["default"])(Uint8Array, cache);
         return buffer.length;
     }
     write(ioWriter) {
@@ -297,17 +160,11 @@ class FlvScriptTag {
                 cache.push(data.slice());
                 return 0;
             };
-            this.writeValue(cacheWriter, 'onMetaData');
-            this.writeValue(cacheWriter, this.onMetaData);
+            (0,avutil_util_amf__WEBPACK_IMPORTED_MODULE_5__.writeValue)(cacheWriter, 'onMetaData');
+            (0,avutil_util_amf__WEBPACK_IMPORTED_MODULE_5__.writeValue)(cacheWriter, this.onMetaData);
             cacheWriter.flush();
-            const buffer = (0,common_function_concatTypeArray__WEBPACK_IMPORTED_MODULE_4__["default"])(Uint8Array, cache);
-            const now = ioWriter.getPos();
-            // tag header
-            _oflv__WEBPACK_IMPORTED_MODULE_6__.writeTagHeader(ioWriter, 18 /* FlvTag.SCRIPT */, buffer.length, BigInt(0));
-            // tag body
-            ioWriter.writeBuffer(buffer);
-            // previousTagSize
-            ioWriter.writeUint32(Number(ioWriter.getPos() - now));
+            const buffer = (0,common_function_concatTypeArray__WEBPACK_IMPORTED_MODULE_1__["default"])(Uint8Array, cache);
+            _oflv__WEBPACK_IMPORTED_MODULE_3__.writeTag(ioWriter, 18 /* FlvTag.SCRIPT */, BigInt(0), undefined, buffer);
         }
     }
     dts2Position(dts) {
@@ -375,9 +232,9 @@ class FlvScriptTag {
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   AVCodecID2FlvCodecTag: () => (/* binding */ AVCodecID2FlvCodecTag),
 /* harmony export */   AVCodecID2FlvCodecType: () => (/* binding */ AVCodecID2FlvCodecType),
 /* harmony export */   FlvAudioCodecType2AVCodecID: () => (/* binding */ FlvAudioCodecType2AVCodecID),
-/* harmony export */   FlvCodecHeaderLength: () => (/* binding */ FlvCodecHeaderLength),
 /* harmony export */   FlvVideoCodecType2AVCodecID: () => (/* binding */ FlvVideoCodecType2AVCodecID)
 /* harmony export */ });
 /*
@@ -405,6 +262,8 @@ class FlvScriptTag {
  *
  */
 const AVCodecID2FlvCodecType = {
+    [65541 /* AVCodecID.AV_CODEC_ID_PCM_U8 */]: 0,
+    [65536 /* AVCodecID.AV_CODEC_ID_PCM_S16LE */]: 3,
     [86018 /* AVCodecID.AV_CODEC_ID_AAC */]: 10,
     [86017 /* AVCodecID.AV_CODEC_ID_MP3 */]: 2,
     [86051 /* AVCodecID.AV_CODEC_ID_SPEEX */]: 11,
@@ -414,7 +273,7 @@ const AVCodecID2FlvCodecType = {
     [65542 /* AVCodecID.AV_CODEC_ID_PCM_MULAW */]: 8,
     [27 /* AVCodecID.AV_CODEC_ID_H264 */]: 7,
     [173 /* AVCodecID.AV_CODEC_ID_HEVC */]: 12,
-    [196 /* AVCodecID.AV_CODEC_ID_VVC */]: 13,
+    // [AVCodecID.AV_CODEC_ID_VVC]: 13,
     [12 /* AVCodecID.AV_CODEC_ID_MPEG4 */]: 9,
     [4 /* AVCodecID.AV_CODEC_ID_H263 */]: 2,
     [86 /* AVCodecID.AV_CODEC_ID_FLASHSV */]: 3,
@@ -436,7 +295,7 @@ const FlvAudioCodecType2AVCodecID = {
 const FlvVideoCodecType2AVCodecID = {
     7: 27 /* AVCodecID.AV_CODEC_ID_H264 */,
     12: 173 /* AVCodecID.AV_CODEC_ID_HEVC */,
-    13: 196 /* AVCodecID.AV_CODEC_ID_VVC */,
+    // 13: AVCodecID.AV_CODEC_ID_VVC,
     9: 12 /* AVCodecID.AV_CODEC_ID_MPEG4 */,
     2: 4 /* AVCodecID.AV_CODEC_ID_H263 */,
     3: 86 /* AVCodecID.AV_CODEC_ID_FLASHSV */,
@@ -444,25 +303,19 @@ const FlvVideoCodecType2AVCodecID = {
     5: 106 /* AVCodecID.AV_CODEC_ID_VP6A */,
     6: 131 /* AVCodecID.AV_CODEC_ID_FLASHSV2 */
 };
-const FlvCodecHeaderLength = {
-    [86018 /* AVCodecID.AV_CODEC_ID_AAC */]: 1,
-    [86017 /* AVCodecID.AV_CODEC_ID_MP3 */]: 0,
-    [86051 /* AVCodecID.AV_CODEC_ID_SPEEX */]: 0,
-    [65543 /* AVCodecID.AV_CODEC_ID_PCM_ALAW */]: 0,
-    [65542 /* AVCodecID.AV_CODEC_ID_PCM_MULAW */]: 0,
-    [69645 /* AVCodecID.AV_CODEC_ID_ADPCM_SWF */]: 0,
-    [86049 /* AVCodecID.AV_CODEC_ID_NELLYMOSER */]: 0,
-    [27 /* AVCodecID.AV_CODEC_ID_H264 */]: 4,
-    [12 /* AVCodecID.AV_CODEC_ID_MPEG4 */]: 4,
-    [173 /* AVCodecID.AV_CODEC_ID_HEVC */]: 4,
-    [196 /* AVCodecID.AV_CODEC_ID_VVC */]: 4,
-    [167 /* AVCodecID.AV_CODEC_ID_VP9 */]: 4,
-    [225 /* AVCodecID.AV_CODEC_ID_AV1 */]: 4,
-    [4 /* AVCodecID.AV_CODEC_ID_H263 */]: 0,
-    [86 /* AVCodecID.AV_CODEC_ID_FLASHSV */]: 0,
-    [92 /* AVCodecID.AV_CODEC_ID_VP6F */]: 0,
-    [106 /* AVCodecID.AV_CODEC_ID_VP6A */]: 0,
-    [131 /* AVCodecID.AV_CODEC_ID_FLASHSV2 */]: 0
+const AVCodecID2FlvCodecTag = {
+    [27 /* AVCodecID.AV_CODEC_ID_H264 */]: 'avc1',
+    [173 /* AVCodecID.AV_CODEC_ID_HEVC */]: 'hvc1',
+    [196 /* AVCodecID.AV_CODEC_ID_VVC */]: 'vvc1',
+    [139 /* AVCodecID.AV_CODEC_ID_VP8 */]: 'vp08',
+    [167 /* AVCodecID.AV_CODEC_ID_VP9 */]: 'vp09',
+    [225 /* AVCodecID.AV_CODEC_ID_AV1 */]: 'av01',
+    [86019 /* AVCodecID.AV_CODEC_ID_AC3 */]: 'ac-3',
+    [86056 /* AVCodecID.AV_CODEC_ID_EAC3 */]: 'ec-3',
+    [86076 /* AVCodecID.AV_CODEC_ID_OPUS */]: 'Opus',
+    [86028 /* AVCodecID.AV_CODEC_ID_FLAC */]: 'fLaC',
+    [86017 /* AVCodecID.AV_CODEC_ID_MP3 */]: '.mp3',
+    [86018 /* AVCodecID.AV_CODEC_ID_AAC */]: 'mp4a'
 };
 
 
@@ -475,12 +328,17 @@ const FlvCodecHeaderLength = {
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   writeAudioTagDataHeader: () => (/* binding */ writeAudioTagDataHeader),
-/* harmony export */   writeTagHeader: () => (/* binding */ writeTagHeader),
-/* harmony export */   writeVideoTagDataHeader: () => (/* binding */ writeVideoTagDataHeader),
-/* harmony export */   writeVideoTagExtDataHeader: () => (/* binding */ writeVideoTagExtDataHeader)
+/* harmony export */   isEnhancedCodecId: () => (/* binding */ isEnhancedCodecId),
+/* harmony export */   writeAudioHeader: () => (/* binding */ writeAudioHeader),
+/* harmony export */   writeTag: () => (/* binding */ writeTag),
+/* harmony export */   writeVideoHeader: () => (/* binding */ writeVideoHeader)
 /* harmony export */ });
+/* unused harmony export updateSize */
 /* harmony import */ var _flv__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./flv */ "./src/avformat/formats/flv/flv.ts");
+/* harmony import */ var avutil_util_rational__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! avutil/util/rational */ "./src/avutil/util/rational.ts");
+/* harmony import */ var avutil_constant__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! avutil/constant */ "./src/avutil/constant.ts");
+/* harmony import */ var _function_mktag__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../../function/mktag */ "./src/avformat/function/mktag.ts");
+/* harmony import */ var common_util_is__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! common/util/is */ "./src/common/util/is.ts");
 /*
  * libmedia flv encode
  *
@@ -506,101 +364,407 @@ const FlvCodecHeaderLength = {
  *
  */
 
-function writeTagHeader(ioWriter, type, size, timestamp) {
+
+
+
+
+function updateSize(ioWriter, pos, size) {
+    const now = ioWriter.getPos();
+    const pointer = ioWriter.getPointer();
+    const minPos = now - BigInt(Math.floor(pointer));
+    if (pos < now && pos >= minPos) {
+        ioWriter.seekInline(pointer + Number(pos - now));
+        ioWriter.writeUint24(size);
+        ioWriter.seekInline(pointer);
+    }
+    else {
+        ioWriter.seek(pos);
+        ioWriter.writeUint24(size);
+        ioWriter.seek(now);
+    }
+}
+function writeTag(ioWriter, type, timestamp, dataHeader, data, previousTagSizeCallback) {
+    ioWriter.flush();
     // tagType
     ioWriter.writeUint8(type);
+    const sizePos = ioWriter.getPos();
     // size
-    ioWriter.writeUint24(size);
+    ioWriter.writeUint24(0);
     // timestamp
     ioWriter.writeUint24(Number(timestamp & BigInt(0xffffff)));
     // timestampExtended
     ioWriter.writeUint8(Number((timestamp >> BigInt(24)) & BigInt(0xff)));
     // streamId always 0
     ioWriter.writeUint24(0);
+    const dataPos = ioWriter.getPos();
+    if (dataHeader) {
+        dataHeader(ioWriter);
+    }
+    if (common_util_is__WEBPACK_IMPORTED_MODULE_4__.func(data)) {
+        data(ioWriter);
+        updateSize(ioWriter, sizePos, Number(ioWriter.getPos() - dataPos));
+    }
+    else if (data) {
+        updateSize(ioWriter, sizePos, data.length + Number(ioWriter.getPos() - dataPos));
+        ioWriter.writeBuffer(data);
+    }
+    const previousTagSize = Number(ioWriter.getPos() - sizePos) + 1;
+    if (previousTagSizeCallback) {
+        previousTagSizeCallback(previousTagSize);
+    }
+    ioWriter.writeUint32(previousTagSize);
 }
-/**
+function isEnhancedCodecId(codecId) {
+    if (codecId === 86018 /* AVCodecID.AV_CODEC_ID_AAC */
+        || codecId === 27 /* AVCodecID.AV_CODEC_ID_H264 */
+        || codecId === 86017 /* AVCodecID.AV_CODEC_ID_MP3 */
+        || codecId === 12 /* AVCodecID.AV_CODEC_ID_MPEG4 */) {
+        return false;
+    }
+    return !!_flv__WEBPACK_IMPORTED_MODULE_0__.AVCodecID2FlvCodecTag[codecId];
+}
+function writeVideoHeader(ioWriter, stream, context, enhanced, type, flags, timestamp, timeBase, ct = 0) {
+    const streamContext = stream.privData;
+    let header = enhanced ? 0x80 : 0;
+    header |= ((flags & 1 /* AVPacketFlags.AV_PKT_FLAG_KEY */) ? 1 /* VideoFrameType.KeyFrame */ : 2 /* VideoFrameType.InterFrame */) << 4;
+    if (enhanced) {
+        if (context.enableNanoTimestamp && timeBase) {
+            const nano = (0,avutil_util_rational__WEBPACK_IMPORTED_MODULE_1__.avRescaleQ2)(timestamp, timeBase, avutil_constant__WEBPACK_IMPORTED_MODULE_2__.AV_NANO_TIME_BASE_Q);
+            const mill = (0,avutil_util_rational__WEBPACK_IMPORTED_MODULE_1__.avRescaleQ2)(timestamp, timeBase, avutil_constant__WEBPACK_IMPORTED_MODULE_2__.AV_MILLI_TIME_BASE_Q);
+            const offset = nano - mill * BigInt(1000000);
+            if (offset) {
+                header |= 7 /* VideoPacketType.ModEx */;
+                ioWriter.writeUint8(header);
+                // modExSize - 1
+                ioWriter.writeUint8(2);
+                ioWriter.writeUint24(Number(BigInt.asIntN(32, offset)));
+                header = 0 /* VideoPacketModExType.TimestampOffsetNano */ << 4;
+            }
+        }
+        if (context.multiVideoTracks) {
+            header |= 6 /* VideoPacketType.MultiTrack */;
+            ioWriter.writeUint8(header);
+            header = 0 /* AVMultiTrackType.OneTrack */ << 4;
+        }
+        header |= type;
+        ioWriter.writeUint8(header);
+        ioWriter.writeUint32((0,_function_mktag__WEBPACK_IMPORTED_MODULE_3__["default"])(_flv__WEBPACK_IMPORTED_MODULE_0__.AVCodecID2FlvCodecTag[stream.codecpar.codecId]));
+        if (context.multiVideoTracks) {
+            ioWriter.writeUint8(streamContext.trackId);
+        }
+        if (type === 1 /* VideoPacketType.CodedFrames */) {
+            ioWriter.writeInt24(ct);
+        }
+    }
+    else {
+        header |= _flv__WEBPACK_IMPORTED_MODULE_0__.AVCodecID2FlvCodecType[stream.codecpar.codecId] & 0x0f;
+        ioWriter.writeUint8(header);
+        if (stream.codecpar.codecId === 27 /* AVCodecID.AV_CODEC_ID_H264 */
+            || stream.codecpar.codecId === 173 /* AVCodecID.AV_CODEC_ID_HEVC */
+            || stream.codecpar.codecId === 196 /* AVCodecID.AV_CODEC_ID_VVC */
+            || stream.codecpar.codecId === 12 /* AVCodecID.AV_CODEC_ID_MPEG4 */) {
+            ioWriter.writeUint8(type);
+            ioWriter.writeInt24(ct);
+        }
+    }
+}
+function writeAudioHeader(ioWriter, stream, context, enhanced, type, timestamp, timeBase) {
+    const streamContext = stream.privData;
+    let header = (enhanced ? 9 : (_flv__WEBPACK_IMPORTED_MODULE_0__.AVCodecID2FlvCodecType[stream.codecpar.codecId] & 0x0f)) << 4;
+    if (enhanced) {
+        if (context.enableNanoTimestamp) {
+            const nano = (0,avutil_util_rational__WEBPACK_IMPORTED_MODULE_1__.avRescaleQ2)(timestamp, timeBase, avutil_constant__WEBPACK_IMPORTED_MODULE_2__.AV_NANO_TIME_BASE_Q);
+            const mill = (0,avutil_util_rational__WEBPACK_IMPORTED_MODULE_1__.avRescaleQ2)(timestamp, timeBase, avutil_constant__WEBPACK_IMPORTED_MODULE_2__.AV_MILLI_TIME_BASE_Q);
+            const offset = nano - mill * BigInt(1000000);
+            if (offset) {
+                header |= 7 /* AudioPacketType.ModEx */;
+                ioWriter.writeUint8(header);
+                // modExSize - 1
+                ioWriter.writeUint8(2);
+                ioWriter.writeUint24(Number(BigInt.asIntN(32, offset)));
+                header = 0 /* AudioPacketModExType.TimestampOffsetNano */ << 4;
+            }
+        }
+        if (context.multiVideoTracks) {
+            header |= 5 /* AudioPacketType.MultiTrack */;
+            ioWriter.writeUint8(header);
+            header = 0 /* AVMultiTrackType.OneTrack */ << 4;
+        }
+        header |= type;
+        ioWriter.writeUint8(header);
+        ioWriter.writeUint32((0,_function_mktag__WEBPACK_IMPORTED_MODULE_3__["default"])(_flv__WEBPACK_IMPORTED_MODULE_0__.AVCodecID2FlvCodecTag[stream.codecpar.codecId]));
+        if (context.multiVideoTracks) {
+            ioWriter.writeUint8(streamContext.trackId);
+        }
+    }
+    else {
+        /**
+         * SoundType 声道类型，对 Nellymoser 来说，永远是单声道；对 AAC 来说，永远是双声道
+         * - 0 sndMono 单声道
+         * - 1 sndStereo 双声道
+         */
+        if (stream.codecpar.codecId === 86018 /* AVCodecID.AV_CODEC_ID_AAC */ || stream.codecpar.chLayout.nbChannels > 1) {
+            header |= 0x01;
+        }
+        /**
+         * SoundSize 采样精度，对于压缩过的音频，永远是 16 位
+         * - 0 snd8Bit
+         * - 1 snd16Bit
+         */
+        if (stream.codecpar.codecId !== 65541 /* AVCodecID.AV_CODEC_ID_PCM_U8 */) {
+            header |= 0x02;
+        }
+        /**
+         * SoundRate 采样率，对 AAC 来说，永远等于 3
+         * - 0 5.5-kHz
+         * - 1 1-kHz
+         * - 2 22-kHz
+         * - 3 44-kHz
+         */
+        if (stream.codecpar.codecId === 86018 /* AVCodecID.AV_CODEC_ID_AAC */ || stream.codecpar.sampleRate >= 44000) {
+            header |= 0x0c;
+        }
+        else if (stream.codecpar.sampleRate >= 22000) {
+            header |= 0x08;
+        }
+        else if (stream.codecpar.sampleRate >= 11000) {
+            header |= 0x04;
+        }
+        ioWriter.writeUint8(header);
+        if (stream.codecpar.codecId === 86018 /* AVCodecID.AV_CODEC_ID_AAC */) {
+            ioWriter.writeUint8(type);
+        }
+    }
+}
+
+
+/***/ }),
+
+/***/ "./src/avformat/function/mktag.ts":
+/*!****************************************!*\
+  !*** ./src/avformat/function/mktag.ts ***!
+  \****************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (/* binding */ mktag)
+/* harmony export */ });
+/* harmony import */ var common_util_logger__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! common/util/logger */ "./src/common/util/logger.ts");
+const cheap__fileName__0 = "src\\avformat\\function\\mktag.ts";
+/*
+ * libmedia string tag to uint32 in big end
  *
- *   0  1  2  3    4    5      6         7
- *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- *  |SoundFormat|SoundRate|SoundSize| SoundType| SoundData
- *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ * 版权所有 (C) 2024 赵高兴
+ * Copyright (C) 2024 Gaoxing Zhao
  *
- * @param ioWriter
- * @param stream
+ * 此文件是 libmedia 的一部分
+ * This file is part of libmedia.
+ *
+ * libmedia 是自由软件；您可以根据 GNU Lesser General Public License（GNU LGPL）3.1
+ * 或任何其更新的版本条款重新分发或修改它
+ * libmedia is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3.1 of the License, or (at your option) any later version.
+ *
+ * libmedia 希望能够为您提供帮助，但不提供任何明示或暗示的担保，包括但不限于适销性或特定用途的保证
+ * 您应自行承担使用 libmedia 的风险，并且需要遵守 GNU Lesser General Public License 中的条款和条件。
+ * libmedia is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
  */
-function writeAudioTagDataHeader(ioWriter, stream) {
-    /**
-     * SoundSize 采样精度，对于压缩过的音频，永远是 16 位
-     * - 0 snd8Bit
-     * - 1 snd16Bit
-     */
-    let header = 0x02;
-    /**
-     * SoundType 声道类型，对 Nellymoser 来说，永远是单声道；对 AAC 来说，永远是双声道
-     * - 0 sndMono 单声道
-     * - 1 sndStereo 双声道
-     */
-    if (stream.codecpar.codecId === 86018 /* AVCodecID.AV_CODEC_ID_AAC */ || stream.codecpar.chLayout.nbChannels > 1) {
-        header |= 0x01;
+
+function mktag(tag) {
+    if (tag.length !== 4) {
+        common_util_logger__WEBPACK_IMPORTED_MODULE_0__.warn(`tag length is not 4, tag: ${tag}`, cheap__fileName__0, 30);
     }
-    /**
-     * SoundRate 采样率，对 AAC 来说，永远等于 3
-     * - 0 5.5-kHz
-     * - 1 1-kHz
-     * - 2 22-kHz
-     * - 3 44-kHz
-     */
-    if (stream.codecpar.codecId === 86018 /* AVCodecID.AV_CODEC_ID_AAC */ || stream.codecpar.sampleRate >= 44000) {
-        header |= 0x0c;
+    let value = 0;
+    for (let i = 0; i < 4; i++) {
+        value = (value << 8) | tag.charCodeAt(i);
     }
-    else if (stream.codecpar.sampleRate >= 22000) {
-        header |= 0x08;
-    }
-    else if (stream.codecpar.sampleRate >= 11000) {
-        header |= 0x04;
-    }
-    header |= ((_flv__WEBPACK_IMPORTED_MODULE_0__.AVCodecID2FlvCodecType[stream.codecpar.codecId]) << 4);
-    ioWriter.writeUint8(header);
+    return value;
 }
-/**
+
+
+/***/ }),
+
+/***/ "./src/avutil/util/amf.ts":
+/*!********************************!*\
+  !*** ./src/avutil/util/amf.ts ***!
+  \********************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   parseValue: () => (/* binding */ parseValue),
+/* harmony export */   writeValue: () => (/* binding */ writeValue)
+/* harmony export */ });
+/* unused harmony export parseObject */
+/* harmony import */ var common_util_is__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! common/util/is */ "./src/common/util/is.ts");
+/* harmony import */ var common_util_array__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! common/util/array */ "./src/common/util/array.ts");
+/* harmony import */ var common_util_object__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! common/util/object */ "./src/common/util/object.ts");
+/*
+ * libmedia flv amf
  *
- *   0 1  2  3  4 5 6 7
- *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-
- *  |FrameType|CodecID| VideoData
- *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- * @param ioWriter
- * @param stream
+ * 版权所有 (C) 2024 赵高兴
+ * Copyright (C) 2024 Gaoxing Zhao
+ *
+ * 此文件是 libmedia 的一部分
+ * This file is part of libmedia.
+ *
+ * libmedia 是自由软件；您可以根据 GNU Lesser General Public License（GNU LGPL）3.1
+ * 或任何其更新的版本条款重新分发或修改它
+ * libmedia is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3.1 of the License, or (at your option) any later version.
+ *
+ * libmedia 希望能够为您提供帮助，但不提供任何明示或暗示的担保，包括但不限于适销性或特定用途的保证
+ * 您应自行承担使用 libmedia 的风险，并且需要遵守 GNU Lesser General Public License 中的条款和条件。
+ * libmedia is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
  */
-function writeVideoTagDataHeader(ioWriter, stream, flags) {
-    let header = _flv__WEBPACK_IMPORTED_MODULE_0__.AVCodecID2FlvCodecType[stream.codecpar.codecId] & 0x0f;
-    if (stream.codecpar.codecId === 27 /* AVCodecID.AV_CODEC_ID_H264 */
-        || stream.codecpar.codecId === 12 /* AVCodecID.AV_CODEC_ID_MPEG4 */
-        || stream.codecpar.codecId === 173 /* AVCodecID.AV_CODEC_ID_HEVC */
-        || stream.codecpar.codecId === 196 /* AVCodecID.AV_CODEC_ID_VVC */) {
-        if (flags & 1 /* AVPacketFlags.AV_PKT_FLAG_KEY */) {
-            header |= (16);
-        }
-        else {
-            header |= (32);
-        }
-    }
-    ioWriter.writeUint8(header);
+
+
+
+async function parseObject(ioReader, endPos) {
+    const key = await ioReader.readString(await ioReader.readUint16());
+    const value = await parseValue(ioReader, endPos);
+    return {
+        key,
+        value
+    };
 }
-function writeVideoTagExtDataHeader(ioWriter, stream, type, flags) {
-    let header = (type & 0x0f) | 0x80;
-    if (stream.codecpar.codecId === 27 /* AVCodecID.AV_CODEC_ID_H264 */
-        || stream.codecpar.codecId === 173 /* AVCodecID.AV_CODEC_ID_HEVC */
-        || stream.codecpar.codecId === 196 /* AVCodecID.AV_CODEC_ID_VVC */
-        || stream.codecpar.codecId === 167 /* AVCodecID.AV_CODEC_ID_VP9 */
-        || stream.codecpar.codecId === 225 /* AVCodecID.AV_CODEC_ID_AV1 */) {
-        if (flags & 1 /* AVPacketFlags.AV_PKT_FLAG_KEY */) {
-            header |= (16);
+async function parseValue(ioReader, endPos) {
+    const type = await ioReader.readUint8();
+    let value;
+    switch (type) {
+        // double
+        case 0:
+            value = await ioReader.readDouble();
+            break;
+        // boolean
+        case 1:
+            value = await ioReader.readUint8() ? true : false;
+            break;
+        // string
+        case 2:
+            value = await ioReader.readString(await ioReader.readUint16());
+            break;
+        // object
+        case 3:
+            value = {};
+            while (ioReader.getPos() < endPos) {
+                const { key, value: val } = await parseObject(ioReader, endPos);
+                value[key] = val;
+                if (((await ioReader.peekUint24()) & 0x00FFFFFF) === 9) {
+                    await ioReader.skip(3);
+                    break;
+                }
+            }
+            break;
+        // ECMA array type (Mixed array)
+        case 8:
+            value = {};
+            // skip ECMAArrayLength(UI32)
+            await ioReader.skip(4);
+            while (ioReader.getPos() < endPos) {
+                const { key, value: val } = await parseObject(ioReader, endPos);
+                value[key] = val;
+                if (((await ioReader.peekUint24()) & 0x00FFFFFF) === 9) {
+                    await ioReader.skip(3);
+                    break;
+                }
+            }
+            break;
+        // ScriptDataObjectEnd
+        case 9:
+        case 5:
+            value = null;
+            break;
+        // Strict array type
+        case 10:
+            value = [];
+            const length = await ioReader.readUint32();
+            for (let i = 0; i < length; i++) {
+                value.push(await parseValue(ioReader, endPos));
+            }
+            break;
+        // Date
+        case 11:
+            const timestamp = await ioReader.readDouble();
+            const localTimeOffset = await ioReader.readInt16();
+            value = new Date(timestamp + localTimeOffset * 60 * 1000);
+            break;
+        // Long string type
+        case 12:
+            value = await ioReader.readString(await ioReader.readUint32());
+            break;
+        default:
+    }
+    return value;
+}
+function writeValue(ioWriter, value) {
+    // double
+    if (common_util_is__WEBPACK_IMPORTED_MODULE_0__.number(value)) {
+        ioWriter.writeUint8(0);
+        ioWriter.writeDouble(value);
+    }
+    else if (common_util_is__WEBPACK_IMPORTED_MODULE_0__.bigint(value)) {
+        ioWriter.writeUint8(0);
+        ioWriter.writeDouble(Number(value));
+    }
+    // boolean
+    else if (common_util_is__WEBPACK_IMPORTED_MODULE_0__.boolean(value)) {
+        ioWriter.writeUint8(1);
+        ioWriter.writeUint8(value ? 1 : 0);
+    }
+    // string
+    else if (common_util_is__WEBPACK_IMPORTED_MODULE_0__.string(value)) {
+        // long string
+        if (value.length >= 65536) {
+            ioWriter.writeUint8(12);
+            ioWriter.writeUint32(value.length);
+            ioWriter.writeString(value);
         }
+        // string
         else {
-            header |= (32);
+            ioWriter.writeUint8(2);
+            ioWriter.writeUint16(value.length);
+            ioWriter.writeString(value);
         }
     }
-    ioWriter.writeUint8(header);
+    // array type
+    else if (common_util_is__WEBPACK_IMPORTED_MODULE_0__.array(value)) {
+        ioWriter.writeUint8(10);
+        ioWriter.writeUint32(value.length);
+        common_util_array__WEBPACK_IMPORTED_MODULE_1__.each(value, (value) => {
+            writeValue(ioWriter, value);
+        });
+    }
+    // object
+    else if (common_util_is__WEBPACK_IMPORTED_MODULE_0__.object(value)) {
+        ioWriter.writeUint8(3);
+        common_util_object__WEBPACK_IMPORTED_MODULE_2__.each(value, (item, key) => {
+            ioWriter.writeUint16(key.length);
+            ioWriter.writeString(key);
+            writeValue(ioWriter, item);
+        });
+        // object end flag
+        ioWriter.writeUint24(9);
+    }
+    else if (value instanceof Date) {
+        ioWriter.writeUint8(11);
+        ioWriter.writeDouble(value.getTime());
+        ioWriter.writeInt16(0);
+    }
+    else if (value == null) {
+        ioWriter.writeUint8(5);
+    }
 }
 
 

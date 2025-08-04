@@ -37,7 +37,7 @@
 class IFormat {
     type = -1 /* AVFormat.UNKNOWN */;
     onStreamAdd;
-    destroy(formatContext) { }
+    async destroy(formatContext) { }
 }
 
 
@@ -63,7 +63,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var avutil_util_mem__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! avutil/util/mem */ "./src/avutil/util/mem.ts");
 /* harmony import */ var avutil_util_avpacket__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! avutil/util/avpacket */ "./src/avutil/util/avpacket.ts");
 /* harmony import */ var avutil_constant__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! avutil/constant */ "./src/avutil/constant.ts");
-var cheap__fileName__0 = "src\\avformat\\formats\\IIvfFormat.ts";
+const cheap__fileName__0 = "src\\avformat\\formats\\IIvfFormat.ts";
 
 
 
@@ -177,14 +177,20 @@ class IIVFFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_4__["default"] {
             return 0;
         }
         catch (error) {
-            if (formatContext.ioReader.error !== -1048576 /* IOError.END */) {
-                common_util_logger__WEBPACK_IMPORTED_MODULE_2__.error(`read packet error, ${error}`, cheap__fileName__0, 173);
+            if (formatContext.ioReader.error !== -1048576 /* IOError.END */
+                && formatContext.ioReader.error !== -1048572 /* IOError.ABORT */) {
+                common_util_logger__WEBPACK_IMPORTED_MODULE_2__.error(`read packet error, ${error}`, cheap__fileName__0, 175);
                 return avutil_error__WEBPACK_IMPORTED_MODULE_3__.DATA_INVALID;
             }
             return formatContext.ioReader.error;
         }
     }
     async seek(formatContext, stream, timestamp, flags) {
+        const now = formatContext.ioReader.getPos();
+        if (flags & 2 /* AVSeekFlags.BYTE */) {
+            await formatContext.ioReader.seek(timestamp);
+            return now;
+        }
         return BigInt(avutil_error__WEBPACK_IMPORTED_MODULE_3__.FORMAT_NOT_SUPPORT);
     }
     getAnalyzeStreamsCount() {

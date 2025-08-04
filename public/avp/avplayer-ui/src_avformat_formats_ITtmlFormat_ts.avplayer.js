@@ -37,7 +37,7 @@
 class IFormat {
     type = -1 /* AVFormat.UNKNOWN */;
     onStreamAdd;
-    destroy(formatContext) { }
+    async destroy(formatContext) { }
 }
 
 
@@ -63,8 +63,8 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var avutil_util_avpacket__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! avutil/util/avpacket */ "./src/avutil/util/avpacket.ts");
 /* harmony import */ var common_util_array__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! common/util/array */ "./src/common/util/array.ts");
 /* harmony import */ var common_util_text__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! common/util/text */ "./src/common/util/text.ts");
-/* harmony import */ var _ttml_ittml__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! ./ttml/ittml */ "./src/avformat/formats/ttml/ittml.ts");
-var cheap__fileName__12 = "src\\avformat\\formats\\ITtmlFormat.ts";
+/* harmony import */ var avutil_codecs_ttml__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! avutil/codecs/ttml */ "./src/avutil/codecs/ttml.ts");
+const cheap__fileName__12 = "src\\avformat\\formats\\ITtmlFormat.ts";
 
 
 
@@ -77,7 +77,7 @@ var cheap__fileName__12 = "src\\avformat\\formats\\ITtmlFormat.ts";
 
 
 class ITtmlFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_4__["default"] {
-    type = 19 /* AVFormat.TTML */;
+    type = 21 /* AVFormat.TTML */;
     queue;
     index;
     constructor() {
@@ -104,7 +104,7 @@ class ITtmlFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_4__["default"] {
             catch (e) { }
         }
         if (common_util_text__WEBPACK_IMPORTED_MODULE_9__) {
-            const result = _ttml_ittml__WEBPACK_IMPORTED_MODULE_10__.parse(xml);
+            const result = avutil_codecs_ttml__WEBPACK_IMPORTED_MODULE_10__.parse(xml);
             this.queue = result.queue;
             if (result.head) {
                 const header = JSON.stringify(result.head);
@@ -177,10 +177,10 @@ class ITtmlFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_4__["default"] {
 
 /***/ }),
 
-/***/ "./src/avformat/formats/ttml/ittml.ts":
-/*!********************************************!*\
-  !*** ./src/avformat/formats/ttml/ittml.ts ***!
-  \********************************************/
+/***/ "./src/avutil/codecs/ttml.ts":
+/*!***********************************!*\
+  !*** ./src/avutil/codecs/ttml.ts ***!
+  \***********************************/
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
@@ -223,28 +223,64 @@ function parse(text) {
         return context;
     }
     function add(p, start, end) {
-        const pts = (0,common_util_time__WEBPACK_IMPORTED_MODULE_3__.hhColonDDColonSSDotMill2Int64)(start || p.begin);
+        let pts = (0,common_util_time__WEBPACK_IMPORTED_MODULE_3__.hhColonDDColonSSDotMill2Int64)(start || p.begin);
         let context = p.context || '';
         let region = p.region || 'Default';
+        let spanEnd = '';
         if (common_util_is__WEBPACK_IMPORTED_MODULE_1__.array(context)) {
             context = formatContext(context);
         }
-        if (p.span?.context) {
-            if (p.span.region) {
-                region = p.span.region;
+        if (common_util_is__WEBPACK_IMPORTED_MODULE_1__.array(p.span)) {
+            common_util_array__WEBPACK_IMPORTED_MODULE_2__.each(p.span, (span) => {
+                if (span.context) {
+                    if (pts === -BigInt(1) && span.begin) {
+                        pts = (0,common_util_time__WEBPACK_IMPORTED_MODULE_3__.hhColonDDColonSSDotMill2Int64)(span.begin);
+                    }
+                    if (!region && span.region) {
+                        region = span.region;
+                    }
+                    if (common_util_is__WEBPACK_IMPORTED_MODULE_1__.string(span.context)) {
+                        context += span.context;
+                        if (span.br) {
+                            context += '<br>';
+                        }
+                    }
+                    else {
+                        context += formatContext(span.context);
+                        if (span.br) {
+                            context += '<br>';
+                        }
+                    }
+                }
+                if (span.end) {
+                    spanEnd = span.end;
+                }
+            });
+        }
+        else if (p.span) {
+            if (p.span.context) {
+                if (pts === -BigInt(1) && p.span.begin) {
+                    pts = (0,common_util_time__WEBPACK_IMPORTED_MODULE_3__.hhColonDDColonSSDotMill2Int64)(p.span.begin);
+                }
+                if (!region && p.span.region) {
+                    region = p.span.region;
+                }
+                if (common_util_is__WEBPACK_IMPORTED_MODULE_1__.string(p.span.context)) {
+                    context += p.span.context;
+                }
+                else {
+                    context += formatContext(p.span.context);
+                }
             }
-            if (common_util_is__WEBPACK_IMPORTED_MODULE_1__.string(p.span.context)) {
-                context += p.span.context;
-            }
-            else {
-                context += formatContext(p.span.context);
+            if (p.span.end) {
+                spanEnd = p.span.end;
             }
         }
         queue.push({
             context,
             pts,
             region: region,
-            duration: p.dur ? (0,common_util_time__WEBPACK_IMPORTED_MODULE_3__.hhColonDDColonSSDotMill2Int64)(p.dur) : ((0,common_util_time__WEBPACK_IMPORTED_MODULE_3__.hhColonDDColonSSDotMill2Int64)(end || p.end) - pts),
+            duration: p.dur ? (0,common_util_time__WEBPACK_IMPORTED_MODULE_3__.hhColonDDColonSSDotMill2Int64)(p.dur) : ((0,common_util_time__WEBPACK_IMPORTED_MODULE_3__.hhColonDDColonSSDotMill2Int64)(end || p.end || spanEnd) - pts)
         });
     }
     function praseP(p, start, end) {
@@ -293,10 +329,10 @@ function parse(text) {
 /* harmony export */   hhColonDDColonSSDotMill2Int64: () => (/* binding */ hhColonDDColonSSDotMill2Int64)
 /* harmony export */ });
 function hhColonDDColonSSDotMill2Int64(time) {
-    time = time.trim();
     if (!time) {
         return -BigInt(1);
     }
+    time = time.trim();
     let list = time.split(':');
     let ts = BigInt(0);
     if (list.length === 3) {
@@ -305,14 +341,16 @@ function hhColonDDColonSSDotMill2Int64(time) {
     ts += BigInt(+(list.shift().trim())) * BigInt(60000);
     list = list.shift().trim().split('.');
     ts += BigInt(+(list.shift().trim())) * BigInt(1000);
-    ts += BigInt(+(list.shift().trim()));
+    if (list.length) {
+        ts += BigInt(+(list.shift().trim()));
+    }
     return ts;
 }
 function hhColonDDColonSSCommaMill2Int64(time) {
-    time = time.trim();
     if (!time) {
         return -BigInt(1);
     }
+    time = time.trim();
     let list = time.split(':');
     let ts = BigInt(0);
     if (list.length === 3) {
@@ -321,7 +359,9 @@ function hhColonDDColonSSCommaMill2Int64(time) {
     ts += BigInt(+(list.shift().trim())) * BigInt(60000);
     list = list.shift().trim().split(',');
     ts += BigInt(+(list.shift().trim())) * BigInt(1000);
-    ts += BigInt(+(list.shift().trim()));
+    if (list.length) {
+        ts += BigInt(+(list.shift().trim()));
+    }
     return ts;
 }
 
@@ -359,7 +399,7 @@ function xml2Json(xmlStr, options = defaultOptions) {
         if (!item) {
             return;
         }
-        if (key !== options.aloneValueName && item.obj[options.aloneValueName] != null) {
+        if (key === options.aloneValueName && item.obj[options.aloneValueName] != null) {
             item.obj[options.aloneValueName] = [item.obj[options.aloneValueName], {
                     tagName: key,
                     ...value

@@ -23,7 +23,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var cheap_std_memory__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! cheap/std/memory */ "./src/cheap/std/memory.ts");
 /* harmony import */ var common_io_IOReaderSync__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! common/io/IOReaderSync */ "./src/common/io/IOReaderSync.ts");
 /* harmony import */ var avutil_error__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! avutil/error */ "./src/avutil/error.ts");
-var cheap__fileName__1 = "src\\avformat\\formats\\OOggFormat.ts";
+const cheap__fileName__1 = "src\\avformat\\formats\\OOggFormat.ts";
 
 /*
  * libmedia oggs encoder
@@ -157,7 +157,16 @@ class OOggFormat extends _OFormat__WEBPACK_IMPORTED_MODULE_2__["default"] {
                     const idPage = new _ogg_opus__WEBPACK_IMPORTED_MODULE_7__.OpusOggsIdPage();
                     const commentPage = new _ogg_opus__WEBPACK_IMPORTED_MODULE_7__.OpusOggsCommentPage();
                     idPage.streamIndex = stream.index;
+                    const list = (0,_ogg_vorbis__WEBPACK_IMPORTED_MODULE_8__.addVorbisComment)(stream.metadata);
+                    list.forEach((value) => {
+                        commentPage.addComment(value);
+                    });
                     idPage.setCodec(stream.codecpar);
+                    if (stream.codecpar.extradata) {
+                        let ioReader = new common_io_IOReaderSync__WEBPACK_IMPORTED_MODULE_10__["default"](stream.codecpar.extradataSize, false);
+                        ioReader.appendBuffer((0,cheap_std_memory__WEBPACK_IMPORTED_MODULE_9__.mapUint8Array)(stream.codecpar.extradata, stream.codecpar.extradataSize));
+                        idPage.read(ioReader);
+                    }
                     commentPage.streamIndex = stream.index;
                     this.headerPagesPayload = [
                         idPage,
@@ -173,6 +182,10 @@ class OOggFormat extends _OFormat__WEBPACK_IMPORTED_MODULE_2__["default"] {
                     idPage.setCodec(stream.codecpar);
                     idPage.streamIndex = stream.index;
                     commentPage.streamIndex = stream.index;
+                    const list = (0,_ogg_vorbis__WEBPACK_IMPORTED_MODULE_8__.addVorbisComment)(stream.metadata);
+                    list.forEach((value) => {
+                        commentPage.addComment(value);
+                    });
                     this.cacheWriter.reset();
                     idPage.write(this.cacheWriter);
                     this.writePage(stream, formatContext.ioWriter, this.cacheWriter.getBuffer().slice(), 2);
@@ -232,6 +245,10 @@ class OOggFormat extends _OFormat__WEBPACK_IMPORTED_MODULE_2__["default"] {
                     this.writePage(stream, formatContext.ioWriter, this.cacheWriter.getBuffer().slice(), 2);
                     const commentPage = new _ogg_OggPage__WEBPACK_IMPORTED_MODULE_3__.OggsCommentPage();
                     commentPage.streamIndex = stream.index;
+                    const list = (0,_ogg_vorbis__WEBPACK_IMPORTED_MODULE_8__.addVorbisComment)(stream.metadata);
+                    list.forEach((value) => {
+                        commentPage.addComment(value);
+                    });
                     this.cacheWriter.setEndian(true);
                     this.cacheWriter.reset();
                     this.cacheWriter.writeUint8(0x84);
@@ -255,6 +272,10 @@ class OOggFormat extends _OFormat__WEBPACK_IMPORTED_MODULE_2__["default"] {
                     this.writePage(stream, formatContext.ioWriter, this.cacheWriter.getBuffer().slice(), 2);
                     const commentPage = new _ogg_OggPage__WEBPACK_IMPORTED_MODULE_3__.OggsCommentPage();
                     commentPage.streamIndex = stream.index;
+                    const list = (0,_ogg_vorbis__WEBPACK_IMPORTED_MODULE_8__.addVorbisComment)(stream.metadata);
+                    list.forEach((value) => {
+                        commentPage.addComment(value);
+                    });
                     this.cacheWriter.reset();
                     commentPage.write(this.cacheWriter);
                     this.writePage(stream, formatContext.ioWriter, this.cacheWriter.getBuffer().slice(), 0);
@@ -275,12 +296,12 @@ class OOggFormat extends _OFormat__WEBPACK_IMPORTED_MODULE_2__["default"] {
     }
     writeAVPacket(formatContext, avpacket) {
         if (!cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[15](avpacket + 28)) {
-            common_util_logger__WEBPACK_IMPORTED_MODULE_4__.warn(`packet\'s size is 0: ${cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[15](avpacket + 32)}, ignore it`, cheap__fileName__1, 318);
+            common_util_logger__WEBPACK_IMPORTED_MODULE_4__.warn(`packet\'s size is 0: ${cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[15](avpacket + 32)}, ignore it`, cheap__fileName__1, 342);
             return;
         }
         const stream = formatContext.getStreamByIndex(cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[15](avpacket + 32));
         if (!stream) {
-            common_util_logger__WEBPACK_IMPORTED_MODULE_4__.warn(`can not found the stream width the packet\'s streamIndex: ${cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[15](avpacket + 32)}, ignore it`, cheap__fileName__1, 325);
+            common_util_logger__WEBPACK_IMPORTED_MODULE_4__.warn(`can not found the stream width the packet\'s streamIndex: ${cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[15](avpacket + 32)}, ignore it`, cheap__fileName__1, 349);
             return;
         }
         this.writePage(stream, formatContext.ioWriter, (0,avutil_util_avpacket__WEBPACK_IMPORTED_MODULE_5__.getAVPacketData)(avpacket), 0);
@@ -501,7 +522,7 @@ class OggsCommentPage {
     userCommentListLength;
     comments;
     constructor() {
-        this.vendorString = "v0.0.1-53-g5c77924";
+        this.vendorString = "v0.9.0-15-gdd5cd674";
         this.vendorStringLength = this.vendorString.length;
         this.userCommentListLength = 0;
         this.comments = new UserComment();
@@ -705,9 +726,13 @@ class OpusOggsCommentPage extends _OggPage__WEBPACK_IMPORTED_MODULE_0__.OggsComm
 
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   VorbisOggsCommentPage: () => (/* binding */ VorbisOggsCommentPage),
-/* harmony export */   VorbisOggsIdPage: () => (/* binding */ VorbisOggsIdPage)
+/* harmony export */   VorbisOggsIdPage: () => (/* binding */ VorbisOggsIdPage),
+/* harmony export */   addVorbisComment: () => (/* binding */ addVorbisComment),
+/* harmony export */   parseVorbisComment: () => (/* binding */ parseVorbisComment)
 /* harmony export */ });
 /* harmony import */ var _OggPage__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./OggPage */ "./src/avformat/formats/ogg/OggPage.ts");
+/* harmony import */ var common_util_object__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! common/util/object */ "./src/common/util/object.ts");
+/* harmony import */ var common_function_isDef__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! common/function/isDef */ "./src/common/function/isDef.ts");
 /*
  * libmedia oggs vorbis page parser
  *
@@ -733,6 +758,59 @@ class OpusOggsCommentPage extends _OggPage__WEBPACK_IMPORTED_MODULE_0__.OggsComm
  *
  */
 
+
+
+const CommentKeyMap = {
+    'album': "album" /* AVStreamMetadataKey.ALBUM */,
+    'artist': "artist" /* AVStreamMetadataKey.ARTIST */,
+    'description': "description" /* AVStreamMetadataKey.DESCRIPTION */,
+    'encoder': "encoder" /* AVStreamMetadataKey.ENCODER */,
+    'title': "title" /* AVStreamMetadataKey.TITLE */,
+    'tracknumber': "track" /* AVStreamMetadataKey.TRACK */,
+    'date': "date" /* AVStreamMetadataKey.DATE */,
+    'genre': "genre" /* AVStreamMetadataKey.GENRE */,
+    'comment': "comment" /* AVStreamMetadataKey.COMMENT */,
+    'albumartist': "albumArtist" /* AVStreamMetadataKey.ALBUM_ARTIST */,
+    'composer': "composer" /* AVStreamMetadataKey.COMPOSER */,
+    'performer': "performer" /* AVStreamMetadataKey.PERFORMER */,
+    'discnumber': "disc" /* AVStreamMetadataKey.DISC */,
+    'organization': "vendor" /* AVStreamMetadataKey.VENDOR */,
+    'copyright': "copyright" /* AVStreamMetadataKey.COPYRIGHT */,
+    'license': "license" /* AVStreamMetadataKey.LICENSE */,
+    'isrc': "isrc" /* AVStreamMetadataKey.ISRC */,
+    'lyrics': "lyrics" /* AVStreamMetadataKey.LYRICS */,
+    'language': "language" /* AVStreamMetadataKey.LANGUAGE */,
+    'label': "vendor" /* AVStreamMetadataKey.VENDOR */,
+    'script': "lyrics" /* AVStreamMetadataKey.LYRICS */,
+    'encoded_by': "vendor" /* AVStreamMetadataKey.VENDOR */
+};
+function parseVorbisComment(list, metadata) {
+    if (!list) {
+        return;
+    }
+    list.forEach((value) => {
+        const l = value.split('=');
+        if (l.length === 2) {
+            const k = l[0].trim().toLowerCase();
+            const v = l[1].trim();
+            if (CommentKeyMap[k]) {
+                metadata[CommentKeyMap[k]] = v;
+            }
+            else {
+                metadata[k.toLowerCase()] = v;
+            }
+        }
+    });
+}
+function addVorbisComment(metadata) {
+    const list = [];
+    common_util_object__WEBPACK_IMPORTED_MODULE_1__.each(CommentKeyMap, (value, key) => {
+        if ((0,common_function_isDef__WEBPACK_IMPORTED_MODULE_2__["default"])(metadata[value])) {
+            list.push(`${key.toUpperCase()}=${metadata[value]}`);
+        }
+    });
+    return list;
+}
 class VorbisOggsIdPage {
     streamIndex;
     /**
@@ -873,7 +951,7 @@ class VorbisOggsCommentPage extends _OggPage__WEBPACK_IMPORTED_MODULE_0__.OggsCo
 /* harmony export */ });
 /* harmony import */ var _util_logger__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../util/logger */ "./src/common/util/logger.ts");
 /* harmony import */ var _util_text__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../util/text */ "./src/common/util/text.ts");
-var cheap__fileName__0 = "src\\common\\io\\IOReaderSync.ts";
+const cheap__fileName__0 = "src\\common\\io\\IOReaderSync.ts";
 /**
  * 读字节流工具
  */
@@ -1613,6 +1691,14 @@ class IOReaderSync {
         this.littleEndian = !bigEndian;
     }
     /**
+     * 当前读取模式是否是大端
+     *
+     * @returns
+     */
+    isBigEndian() {
+        return !this.littleEndian;
+    }
+    /**
      * 获取源总字节长度
      *
      * @returns
@@ -1622,14 +1708,14 @@ class IOReaderSync {
             return this.fileSize_;
         }
         if (!this.onSize) {
-            _util_logger__WEBPACK_IMPORTED_MODULE_0__.warn('IOReader error, fileSize failed because of no onSize callback', cheap__fileName__0, 871);
+            _util_logger__WEBPACK_IMPORTED_MODULE_0__.warn('IOReader error, fileSize failed because of no onSize callback', cheap__fileName__0, 880);
             return BigInt(0);
         }
         try {
             this.fileSize_ = this.onSize();
         }
         catch (error) {
-            _util_logger__WEBPACK_IMPORTED_MODULE_0__.warn(`IOReader error, call fileSize failed: ${error}`, cheap__fileName__0, 878);
+            _util_logger__WEBPACK_IMPORTED_MODULE_0__.warn(`IOReader error, call fileSize failed: ${error}`, cheap__fileName__0, 887);
             this.fileSize_ = BigInt(0);
         }
         return this.fileSize_;

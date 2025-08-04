@@ -62,7 +62,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var avutil_util_avpacket__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! avutil/util/avpacket */ "./src/avutil/util/avpacket.ts");
 /* harmony import */ var common_util_object__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! common/util/object */ "./src/common/util/object.ts");
 /* harmony import */ var common_function_concatTypeArray__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! common/function/concatTypeArray */ "./src/common/function/concatTypeArray.ts");
-/* harmony import */ var _codecs_hevc__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! ../codecs/hevc */ "./src/avformat/codecs/hevc.ts");
+/* harmony import */ var avutil_codecs_hevc__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! avutil/codecs/hevc */ "./src/avutil/codecs/hevc.ts");
 /* harmony import */ var avutil_constant__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! avutil/constant */ "./src/avutil/constant.ts");
 /* harmony import */ var common_io_BitReader__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! common/io/BitReader */ "./src/common/io/BitReader.ts");
 /* harmony import */ var avutil_util_expgolomb__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(/*! avutil/util/expgolomb */ "./src/avutil/util/expgolomb.ts");
@@ -176,7 +176,7 @@ class IHevcFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_3__["default"] {
         stream.codecpar.codecId = 173 /* AVCodecID.AV_CODEC_ID_HEVC */;
         stream.timeBase.den = avutil_constant__WEBPACK_IMPORTED_MODULE_10__.AV_TIME_BASE;
         stream.timeBase.num = 1;
-        stream.codecpar.bitFormat = 2 /* BitFormat.ANNEXB */;
+        stream.codecpar.flags |= 1 /* AVCodecParameterFlags.AV_CODECPAR_FLAG_H26X_ANNEXB */;
         this.currentDts = BigInt(0);
         this.currentPts = BigInt(0);
         this.naluPos = BigInt(0);
@@ -189,15 +189,22 @@ class IHevcFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_3__["default"] {
                 return -1048576 /* IOError.END */;
             }
             const data = (0,common_function_concatTypeArray__WEBPACK_IMPORTED_MODULE_8__["default"])(Uint8Array, slices);
-            const extradata = _codecs_hevc__WEBPACK_IMPORTED_MODULE_9__.annexbExtradata2AvccExtradata(data);
+            const extradata = avutil_codecs_hevc__WEBPACK_IMPORTED_MODULE_9__.generateAnnexbExtradata(data);
             if (extradata) {
                 stream.codecpar.extradata = (0,avutil_util_mem__WEBPACK_IMPORTED_MODULE_5__.avMalloc)(extradata.length);
                 (0,cheap_std_memory__WEBPACK_IMPORTED_MODULE_4__.memcpyFromUint8Array)(stream.codecpar.extradata, extradata.length, extradata);
                 stream.codecpar.extradataSize = extradata.length;
-                _codecs_hevc__WEBPACK_IMPORTED_MODULE_9__.parseAVCodecParameters(stream, extradata);
-                const { spss, ppss } = _codecs_hevc__WEBPACK_IMPORTED_MODULE_9__.extradata2VpsSpsPps(extradata);
-                this.sps = _codecs_hevc__WEBPACK_IMPORTED_MODULE_9__.parseSPS(spss[0]);
-                this.pps = _codecs_hevc__WEBPACK_IMPORTED_MODULE_9__.parsePPS(ppss[0]);
+                avutil_codecs_hevc__WEBPACK_IMPORTED_MODULE_9__.parseAVCodecParameters(stream, extradata);
+                const sps = slices.find((n) => {
+                    const type = (n[(n[2] === 1 ? 3 : 4)] >>> 1) & 0x3f;
+                    return type === 33 /* hevc.HEVCNaluType.kSliceSPS */;
+                });
+                const pps = slices.find((n) => {
+                    const type = (n[(n[2] === 1 ? 3 : 4)] >>> 1) & 0x3f;
+                    return type === 34 /* hevc.HEVCNaluType.kSlicePPS */;
+                });
+                this.sps = avutil_codecs_hevc__WEBPACK_IMPORTED_MODULE_9__.parseSPS(sps);
+                this.pps = avutil_codecs_hevc__WEBPACK_IMPORTED_MODULE_9__.parsePPS(pps);
                 const avpacket = (0,avutil_util_avpacket__WEBPACK_IMPORTED_MODULE_6__.createAVPacket)();
                 const dataP = (0,avutil_util_mem__WEBPACK_IMPORTED_MODULE_5__.avMalloc)(data.length);
                 (0,cheap_std_memory__WEBPACK_IMPORTED_MODULE_4__.memcpyFromUint8Array)(dataP, data.length, data);
@@ -212,7 +219,7 @@ class IHevcFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_3__["default"] {
                 cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[15](avpacket + 36, cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[15](avpacket + 36) | 1 /* AVPacketFlags.AV_PKT_FLAG_KEY */);
                 cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[15](avpacket + 72, stream.timeBase.num);
                 cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[15](avpacket + 76, stream.timeBase.den);
-                cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[15](avpacket + 80, 2 /* BitFormat.ANNEXB */);
+                cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[15](avpacket + 36, cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[15](avpacket + 36) | 64 /* AVPacketFlags.AV_PKT_FLAG_H26X_ANNEXB */);
                 formatContext.interval.packetBuffer.push(avpacket);
                 break;
             }
@@ -234,10 +241,10 @@ class IHevcFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_3__["default"] {
             const type = (header >>> 1) & 0x3f;
             const temporalId = (n[2] === 1 ? n[4] : n[5]) & 0x07;
             if (type === 33 /* hevc.HEVCNaluType.kSliceSPS */) {
-                this.sps = _codecs_hevc__WEBPACK_IMPORTED_MODULE_9__.parseSPS(n);
+                this.sps = avutil_codecs_hevc__WEBPACK_IMPORTED_MODULE_9__.parseSPS(n);
             }
             if (type === 34 /* hevc.HEVCNaluType.kSlicePPS */) {
-                this.pps = _codecs_hevc__WEBPACK_IMPORTED_MODULE_9__.parsePPS(n);
+                this.pps = avutil_codecs_hevc__WEBPACK_IMPORTED_MODULE_9__.parsePPS(n);
             }
             if (type === 19 /* hevc.HEVCNaluType.kSliceIDR_W_RADL */
                 || type === 20 /* hevc.HEVCNaluType.kSliceIDR_N_LP */) {
@@ -326,7 +333,7 @@ class IHevcFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_3__["default"] {
         cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[15](avpacket + 32, stream.index);
         cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[15](avpacket + 72, stream.timeBase.num);
         cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[15](avpacket + 76, stream.timeBase.den);
-        cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[15](avpacket + 80, 2 /* BitFormat.ANNEXB */);
+        cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[15](avpacket + 36, cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[15](avpacket + 36) | 64 /* AVPacketFlags.AV_PKT_FLAG_H26X_ANNEXB */);
         if (isKey) {
             cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[15](avpacket + 36, cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[15](avpacket + 36) | 1 /* AVPacketFlags.AV_PKT_FLAG_KEY */);
         }
@@ -401,6 +408,11 @@ class IHevcFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_3__["default"] {
         }
     }
     async seek(formatContext, stream, timestamp, flags) {
+        const now = formatContext.ioReader.getPos();
+        if (flags & 2 /* AVSeekFlags.BYTE */) {
+            await formatContext.ioReader.seek(timestamp);
+            return now;
+        }
         return BigInt(avutil_error__WEBPACK_IMPORTED_MODULE_2__.FORMAT_NOT_SUPPORT);
     }
     getAnalyzeStreamsCount() {

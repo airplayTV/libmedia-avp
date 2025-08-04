@@ -26,7 +26,9 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _function_seekInBytes__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(/*! ../function/seekInBytes */ "./src/avformat/function/seekInBytes.ts");
 /* harmony import */ var common_util_array__WEBPACK_IMPORTED_MODULE_13__ = __webpack_require__(/*! common/util/array */ "./src/common/util/array.ts");
 /* harmony import */ var avutil_util_rational__WEBPACK_IMPORTED_MODULE_14__ = __webpack_require__(/*! avutil/util/rational */ "./src/avutil/util/rational.ts");
-var cheap__fileName__0 = "src\\avformat\\formats\\IFlacFormat.ts";
+/* harmony import */ var _ogg_vorbis__WEBPACK_IMPORTED_MODULE_15__ = __webpack_require__(/*! ./ogg/vorbis */ "./src/avformat/formats/ogg/vorbis.ts");
+const cheap__fileName__0 = "src\\avformat\\formats\\IFlacFormat.ts";
+
 
 
 
@@ -100,7 +102,7 @@ class IFlacFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_4__["default"] {
     async readHeader(formatContext) {
         const signature = await formatContext.ioReader.readString(4);
         if (signature !== 'fLaC') {
-            common_util_logger__WEBPACK_IMPORTED_MODULE_2__.error('the file format is not flac', cheap__fileName__0, 116);
+            common_util_logger__WEBPACK_IMPORTED_MODULE_2__.error('the file format is not flac', cheap__fileName__0, 118);
             return avutil_error__WEBPACK_IMPORTED_MODULE_3__.DATA_INVALID;
         }
         this.context.fileSize = await formatContext.ioReader.fileSize();
@@ -166,8 +168,8 @@ class IFlacFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_4__["default"] {
                     const length = await formatContext.ioReader.readUint32();
                     comments.push(await formatContext.ioReader.readString(length));
                 }
-                stream.metadata['vendor'] = vendorString;
-                stream.metadata['comments'] = comments;
+                stream.metadata["vendor" /* AVStreamMetadataKey.VENDOR */] = vendorString;
+                (0,_ogg_vorbis__WEBPACK_IMPORTED_MODULE_15__.parseVorbisComment)(comments, stream.metadata);
                 formatContext.ioReader.setEndian(true);
             }
             else if (blockType === 5 /* MetaDataBlockType.CUESHEET */) {
@@ -247,7 +249,8 @@ class IFlacFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_4__["default"] {
             }
             let i = buffers.length ? 0 : 2;
             const sync = this.context.isVarSize < 0 ? [0xf8, 0xf9] : (this.context.isVarSize ? [0xf9] : [0xf8]);
-            for (; i < this.context.cacheBuffer.length - 2; i++) {
+            const end = this.context.cacheBuffer.length - 2;
+            for (; i < end; i++) {
                 if (this.context.cacheBuffer[i] === 0xff && common_util_array__WEBPACK_IMPORTED_MODULE_13__.has(sync, this.context.cacheBuffer[i + 1])) {
                     if (i) {
                         buffers.push(this.context.cacheBuffer.subarray(0, i));
@@ -257,7 +260,7 @@ class IFlacFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_4__["default"] {
                     break;
                 }
             }
-            if (i === this.context.cacheBuffer.length - 2) {
+            if (i === end) {
                 if (formatContext.ioReader.getPos() === this.context.fileSize) {
                     buffers.push(this.context.cacheBuffer);
                     this.context.cachePos += BigInt(Math.floor(this.context.cacheBuffer.length));
@@ -281,8 +284,10 @@ class IFlacFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_4__["default"] {
             const info = {};
             // 检查下一帧的数据是否合法，不合法说明和前面的是同一帧数据
             if ((0,_flac_iflac__WEBPACK_IMPORTED_MODULE_8__.decodeFrameHeader)(this.context.bitReader, info, true) < 0
-                || info.sampleRate !== this.context.frameInfo.sampleRate
-                || info.channels !== this.context.frameInfo.channels) {
+                // || info.sampleRate !== this.context.frameInfo.sampleRate
+                // || info.channels !== this.context.frameInfo.channels
+                || ((info.frameOrSampleNum - this.context.frameInfo.frameOrSampleNum !== BigInt(this.context.frameInfo.blocksize >> 0))
+                    && (info.frameOrSampleNum !== this.context.frameInfo.frameOrSampleNum + BigInt(1)))) {
                 buffers.push(this.context.cacheBuffer.subarray(0, 2));
                 this.context.cachePos += BigInt(2);
                 this.context.cacheBuffer = this.context.cacheBuffer.subarray(2);
@@ -330,6 +335,7 @@ class IFlacFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_4__["default"] {
             cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[15](avpacket + 32, stream.index);
             cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[15](avpacket + 76, stream.timeBase.den);
             cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[15](avpacket + 72, stream.timeBase.num);
+            cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[15](avpacket + 36, cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[15](avpacket + 36) | 1 /* AVPacketFlags.AV_PKT_FLAG_KEY */);
             cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[17](avpacket + 16, this.context.frameInfo.isVarSize
                 ? this.context.frameInfo.frameOrSampleNum
                 : this.context.frameInfo.frameOrSampleNum * BigInt(this.context.frameInfo.blocksize >> 0)), cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[17](avpacket + 8, this.context.frameInfo.isVarSize
@@ -341,8 +347,9 @@ class IFlacFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_4__["default"] {
             return 0;
         }
         catch (error) {
-            if (formatContext.ioReader.error !== -1048576 /* IOError.END */) {
-                common_util_logger__WEBPACK_IMPORTED_MODULE_2__.error(`read packet error, ${error}`, cheap__fileName__0, 409);
+            if (formatContext.ioReader.error !== -1048576 /* IOError.END */
+                && formatContext.ioReader.error !== -1048572 /* IOError.ABORT */) {
+                common_util_logger__WEBPACK_IMPORTED_MODULE_2__.error(`read packet error, ${error}`, cheap__fileName__0, 418);
                 return avutil_error__WEBPACK_IMPORTED_MODULE_3__.DATA_INVALID;
             }
             return formatContext.ioReader.error;
@@ -399,24 +406,31 @@ class IFlacFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_4__["default"] {
                 return 1;
             });
             if (index > 0 && (0,avutil_util_rational__WEBPACK_IMPORTED_MODULE_14__.avRescaleQ)(timestamp - stream.sampleIndexes[index - 1].pts, stream.timeBase, avutil_constant__WEBPACK_IMPORTED_MODULE_11__.AV_MILLI_TIME_BASE_Q) < BigInt(5000)) {
-                common_util_logger__WEBPACK_IMPORTED_MODULE_2__.debug(`seek in sampleIndexes, found index: ${index}, pts: ${stream.sampleIndexes[index - 1].pts}, pos: ${stream.sampleIndexes[index - 1].pos}`, cheap__fileName__0, 477);
+                common_util_logger__WEBPACK_IMPORTED_MODULE_2__.debug(`seek in sampleIndexes, found index: ${index}, pts: ${stream.sampleIndexes[index - 1].pts}, pos: ${stream.sampleIndexes[index - 1].pos}`, cheap__fileName__0, 485);
                 await formatContext.ioReader.seek(stream.sampleIndexes[index - 1].pos);
                 context.cacheBuffer = null;
                 return now;
             }
         }
         if (context.seekPoints.length) {
+            let index = 0;
             for (let i = 0; i < context.seekPoints.length; i++) {
-                const cue = context.seekPoints[i];
-                if (cue.pts >= timestamp) {
-                    common_util_logger__WEBPACK_IMPORTED_MODULE_2__.debug(`seek in seekPoints, found index: ${i}, pts: ${cue.pts}, pos: ${cue.pos + context.firstFramePos}`, cheap__fileName__0, 488);
-                    await formatContext.ioReader.seek(cue.pos + context.firstFramePos);
-                    context.cacheBuffer = null;
-                    return now;
+                if (context.seekPoints[i].pts === timestamp) {
+                    index = i;
+                    break;
+                }
+                else if (context.seekPoints[i].pts > timestamp) {
+                    index = Math.max(i - 1, 0);
+                    break;
                 }
             }
+            const cue = context.seekPoints[index];
+            common_util_logger__WEBPACK_IMPORTED_MODULE_2__.debug(`seek in seekPoints, found index: ${index}, pts: ${cue.pts}, pos: ${cue.pos + context.firstFramePos}`, cheap__fileName__0, 505);
+            await formatContext.ioReader.seek(cue.pos + context.firstFramePos);
+            context.cacheBuffer = null;
+            return now;
         }
-        common_util_logger__WEBPACK_IMPORTED_MODULE_2__.debug('not found any keyframe index, try to seek in bytes', cheap__fileName__0, 496);
+        common_util_logger__WEBPACK_IMPORTED_MODULE_2__.debug('not found any keyframe index, try to seek in bytes', cheap__fileName__0, 511);
         const ret = await (0,_function_seekInBytes__WEBPACK_IMPORTED_MODULE_12__["default"])(formatContext, stream, timestamp, context.firstFramePos, this.readAVPacket.bind(this), this.syncFrame.bind(this));
         if (ret > 0) {
             context.cacheBuffer = null;
@@ -473,74 +487,6 @@ class IFormat {
 
 /***/ }),
 
-/***/ "./src/avformat/formats/flac/flac.ts":
-/*!*******************************************!*\
-  !*** ./src/avformat/formats/flac/flac.ts ***!
-  \*******************************************/
-/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
-
-/* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   BlockSizeTable: () => (/* binding */ BlockSizeTable),
-/* harmony export */   FLAC_MAX_CHANNELS: () => (/* binding */ FLAC_MAX_CHANNELS),
-/* harmony export */   SampleRateTable: () => (/* binding */ SampleRateTable),
-/* harmony export */   SampleSizeTable: () => (/* binding */ SampleSizeTable)
-/* harmony export */ });
-/* unused harmony exports FLAC_STREAMINFO_SIZE, FLAC_MIN_BLOCKSIZE, FLAC_MAX_BLOCKSIZE, FLAC_MIN_FRAME_SIZE */
-/*
- * libmedia flac defined
- *
- * 版权所有 (C) 2024 赵高兴
- * Copyright (C) 2024 Gaoxing Zhao
- *
- * 此文件是 libmedia 的一部分
- * This file is part of libmedia.
- *
- * libmedia 是自由软件；您可以根据 GNU Lesser General Public License（GNU LGPL）3.1
- * 或任何其更新的版本条款重新分发或修改它
- * libmedia is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 3.1 of the License, or (at your option) any later version.
- *
- * libmedia 希望能够为您提供帮助，但不提供任何明示或暗示的担保，包括但不限于适销性或特定用途的保证
- * 您应自行承担使用 libmedia 的风险，并且需要遵守 GNU Lesser General Public License 中的条款和条件。
- * libmedia is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- */
-const FLAC_STREAMINFO_SIZE = 34;
-const FLAC_MAX_CHANNELS = 8;
-const FLAC_MIN_BLOCKSIZE = 16;
-const FLAC_MAX_BLOCKSIZE = 65535;
-const FLAC_MIN_FRAME_SIZE = 10;
-const SampleSizeTable = [0, 8, 12, 0, 16, 20, 24, 32];
-const SampleRateTable = [
-    0, 88200, 176400, 192000, 8000, 16000, 22050,
-    24000, 32000, 44100, 48000, 96000,
-    0, 0, 0, 0
-];
-const BlockSizeTable = [
-    0, 192,
-    576,
-    1152,
-    2304,
-    4608,
-    0, 0,
-    256,
-    512,
-    1024,
-    2048,
-    4096,
-    8192,
-    16384,
-    32768
-];
-
-
-/***/ }),
-
 /***/ "./src/avformat/formats/flac/iflac.ts":
 /*!********************************************!*\
   !*** ./src/avformat/formats/flac/iflac.ts ***!
@@ -553,9 +499,9 @@ const BlockSizeTable = [
 /* unused harmony export getUtf8 */
 /* harmony import */ var avutil_error__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! avutil/error */ "./src/avutil/error.ts");
 /* harmony import */ var common_util_logger__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! common/util/logger */ "./src/common/util/logger.ts");
-/* harmony import */ var _flac__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./flac */ "./src/avformat/formats/flac/flac.ts");
+/* harmony import */ var avutil_codecs_flac__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! avutil/codecs/flac */ "./src/avutil/codecs/flac.ts");
 /* harmony import */ var common_math_crc8__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! common/math/crc8 */ "./src/common/math/crc8.ts");
-var cheap__fileName__0 = "src\\avformat\\formats\\flac\\iflac.ts";
+const cheap__fileName__0 = "src\\avformat\\formats\\flac\\iflac.ts";
 
 
 
@@ -587,13 +533,13 @@ function decodeFrameHeader(bitReader, info, check = false) {
     const bsCode = bitReader.readU(4);
     const srCode = bitReader.readU(4);
     info.chMode = bitReader.readU(4);
-    if (info.chMode < _flac__WEBPACK_IMPORTED_MODULE_2__.FLAC_MAX_CHANNELS) {
+    if (info.chMode < avutil_codecs_flac__WEBPACK_IMPORTED_MODULE_2__.FLAC_MAX_CHANNELS) {
         info.channels = info.chMode + 1;
         info.chMode = 0 /* FlacCHMode.INDEPENDENT */;
     }
-    else if (info.chMode < _flac__WEBPACK_IMPORTED_MODULE_2__.FLAC_MAX_CHANNELS + 3 /* FlacCHMode.MID_SIDE */) {
+    else if (info.chMode < avutil_codecs_flac__WEBPACK_IMPORTED_MODULE_2__.FLAC_MAX_CHANNELS + 3 /* FlacCHMode.MID_SIDE */) {
         info.channels = 2;
-        info.chMode -= _flac__WEBPACK_IMPORTED_MODULE_2__.FLAC_MAX_CHANNELS - 1;
+        info.chMode -= avutil_codecs_flac__WEBPACK_IMPORTED_MODULE_2__.FLAC_MAX_CHANNELS - 1;
     }
     else {
         !check && common_util_logger__WEBPACK_IMPORTED_MODULE_1__.error(`invalid channel mode: ${info.chMode}`, cheap__fileName__0, 76);
@@ -604,7 +550,7 @@ function decodeFrameHeader(bitReader, info, check = false) {
         !check && common_util_logger__WEBPACK_IMPORTED_MODULE_1__.error(`invalid sample size code: ${bpsCode}`, cheap__fileName__0, 82);
         return avutil_error__WEBPACK_IMPORTED_MODULE_0__.DATA_INVALID;
     }
-    info.bps = _flac__WEBPACK_IMPORTED_MODULE_2__.SampleSizeTable[bpsCode];
+    info.bps = avutil_codecs_flac__WEBPACK_IMPORTED_MODULE_2__.SampleSizeTable[bpsCode];
     if (bitReader.readU1()) {
         !check && common_util_logger__WEBPACK_IMPORTED_MODULE_1__.error('broken stream, invalid padding', cheap__fileName__0, 88);
         return avutil_error__WEBPACK_IMPORTED_MODULE_0__.DATA_INVALID;
@@ -625,10 +571,10 @@ function decodeFrameHeader(bitReader, info, check = false) {
         info.blocksize = bitReader.readU(16) + 1;
     }
     else {
-        info.blocksize = _flac__WEBPACK_IMPORTED_MODULE_2__.BlockSizeTable[bsCode];
+        info.blocksize = avutil_codecs_flac__WEBPACK_IMPORTED_MODULE_2__.BlockSizeTable[bsCode];
     }
     if (srCode < 12) {
-        info.sampleRate = _flac__WEBPACK_IMPORTED_MODULE_2__.SampleRateTable[srCode];
+        info.sampleRate = avutil_codecs_flac__WEBPACK_IMPORTED_MODULE_2__.SampleRateTable[srCode];
     }
     else if (srCode === 12) {
         info.sampleRate = bitReader.readU(8) * 1000;
@@ -649,6 +595,454 @@ function decodeFrameHeader(bitReader, info, check = false) {
         return avutil_error__WEBPACK_IMPORTED_MODULE_0__.DATA_INVALID;
     }
     return 0;
+}
+
+
+/***/ }),
+
+/***/ "./src/avformat/formats/ogg/OggPage.ts":
+/*!*********************************************!*\
+  !*** ./src/avformat/formats/ogg/OggPage.ts ***!
+  \*********************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   OggPage: () => (/* binding */ OggPage),
+/* harmony export */   OggsCommentPage: () => (/* binding */ OggsCommentPage)
+/* harmony export */ });
+/* harmony import */ var avutil_constant__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! avutil/constant */ "./src/avutil/constant.ts");
+/* harmony import */ var common_util_text__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! common/util/text */ "./src/common/util/text.ts");
+/*
+ * libmedia oggs page parser
+ *
+ * 版权所有 (C) 2024 赵高兴
+ * Copyright (C) 2024 Gaoxing Zhao
+ *
+ * 此文件是 libmedia 的一部分
+ * This file is part of libmedia.
+ *
+ * libmedia 是自由软件；您可以根据 GNU Lesser General Public License（GNU LGPL）3.1
+ * 或任何其更新的版本条款重新分发或修改它
+ * libmedia is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3.1 of the License, or (at your option) any later version.
+ *
+ * libmedia 希望能够为您提供帮助，但不提供任何明示或暗示的担保，包括但不限于适销性或特定用途的保证
+ * 您应自行承担使用 libmedia 的风险，并且需要遵守 GNU Lesser General Public License 中的条款和条件。
+ * libmedia is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ */
+
+
+class UserComment {
+    list;
+    constructor() {
+        this.list = [];
+    }
+    read(ioReader, count) {
+        for (let i = 0; i < count; i++) {
+            const length = ioReader.readUint32();
+            this.list.push(ioReader.readString(length));
+        }
+    }
+    write(ioWriter) {
+        for (let i = 0; i < this.list.length; i++) {
+            const buffer = common_util_text__WEBPACK_IMPORTED_MODULE_1__.encode(this.list[i]);
+            ioWriter.writeUint32(buffer.length);
+            ioWriter.writeBuffer(buffer);
+        }
+    }
+    addComment(comment) {
+        this.list.push(comment);
+    }
+}
+class OggPage {
+    /**
+     * 4 bytes 页标识， OggS ASCII 字符
+     */
+    capturePattern;
+    /**
+     * 1 bytes 版本 id, 目前为 0
+     */
+    streamStructureVersion;
+    /**
+     * 1 bytes 类型标识， 表示该页为逻辑流的第一页
+     *
+     * - 0x01：本页媒体编码数据与前一页属于同一个逻辑流的同一个 packet，若此位没有设，表示本页是以一个新的 packet 开始的；
+     * - 0x02：表示该页为逻辑流的第一页，bos 标识，如果此位未设置，那表示不是第一页；
+     * - 0x04：表示该页为逻辑流的最后一页，eos 标识，如果此位未设置，那表示本页不是最后一页；
+     */
+    headerTypeFlag;
+    /**
+     * 8 bytes 媒体编码相关的参数信息
+     *
+     * 对于音频流来说，它存储着到本页为止逻辑流在 PCM 输出中采样码的数目，可以由它来算得时间戳
+     * 对于视频流来说，它存储着到本页为止视频帧编码的数目
+     * 若此值为 -1，那表示截止到本页，逻辑流的 packet 未结束
+     */
+    granulePosition;
+    /**
+     * 4 bytes 当前页中的流的 id，它是区分本页所属逻辑流与其他逻辑流的序号，我们可以通过这个值来划分流
+     */
+    serialNumber;
+    /**
+     * 4 bytes 本页在逻辑流的序号
+     */
+    pageSequenceNumber;
+    /**
+     * 4 bytes 循环冗余效验码效验， 用来效验每页的有效性
+     */
+    crcCheckSum;
+    /**
+     * 1 bytes 给定本页在 segment_table 域中出现的 segment 个数
+     */
+    numberPageSegments;
+    /**
+     * segment 长度表
+     *
+     * 表示着每个 segment 的长度，取值范围是 0~255
+     * 由 segment（1 个 segment 就是 1 个字节）可以得到 packet 的值，每个 packet 的大小是以最后一个不等于 255 的 segment 结束的
+     */
+    segmentTable;
+    payload;
+    pos;
+    constructor() {
+        this.reset();
+    }
+    reset() {
+        this.capturePattern = 'OggS';
+        this.streamStructureVersion = 0;
+        this.headerTypeFlag = 0;
+        this.granulePosition = avutil_constant__WEBPACK_IMPORTED_MODULE_0__.NOPTS_VALUE_BIGINT;
+        this.serialNumber = 0;
+        this.pageSequenceNumber = 0;
+        this.crcCheckSum = 0;
+        this.numberPageSegments = 0;
+        this.segmentTable = [];
+        this.pos = BigInt(0);
+    }
+    async read(ioReader) {
+        this.pos = ioReader.getPos();
+        await this.readPageHeader(ioReader);
+        const length = this.segmentTable.reduce((prev, len) => {
+            return prev + len;
+        }, 0);
+        if (length) {
+            this.payload = await ioReader.readBuffer(length);
+        }
+    }
+    async readPageHeader(ioReader) {
+        this.capturePattern = await ioReader.readString(4);
+        this.streamStructureVersion = await ioReader.readUint8();
+        this.headerTypeFlag = await ioReader.readUint8();
+        this.granulePosition = await ioReader.readUint64();
+        this.serialNumber = await ioReader.readUint32();
+        this.pageSequenceNumber = await ioReader.readUint32();
+        this.crcCheckSum = await ioReader.readUint32();
+        this.numberPageSegments = await ioReader.readUint8();
+        if (this.numberPageSegments) {
+            for (let i = 0; i < this.numberPageSegments; i++) {
+                const len = await ioReader.readUint8();
+                this.segmentTable.push(len);
+            }
+        }
+    }
+    write(ioWriter) {
+        this.pos = ioWriter.getPos();
+        ioWriter.writeString(this.capturePattern);
+        ioWriter.writeUint8(this.streamStructureVersion);
+        ioWriter.writeUint8(this.headerTypeFlag);
+        ioWriter.writeUint64(this.granulePosition);
+        ioWriter.writeUint32(this.serialNumber);
+        ioWriter.writeUint32(this.pageSequenceNumber);
+        ioWriter.writeUint32(this.crcCheckSum);
+        if (this.payload) {
+            this.numberPageSegments = Math.floor(this.payload.length / 255) + 1;
+            const last = this.payload.length % 255;
+            ioWriter.writeUint8(this.numberPageSegments);
+            for (let i = 0; i < this.numberPageSegments - 1; i++) {
+                ioWriter.writeUint8(255);
+            }
+            ioWriter.writeUint8(last);
+            ioWriter.writeBuffer(this.payload);
+        }
+        else {
+            ioWriter.writeUint8(0);
+        }
+    }
+}
+class OggsCommentPage {
+    streamIndex;
+    /**
+     * 8 bytes Magic Signature: OpusTags
+     */
+    signature;
+    /**
+     * 4 bytes unsigned
+     */
+    vendorStringLength;
+    /**
+     * 长度由 Vendor String Length 指定， utf-8 编码
+     */
+    vendorString;
+    /**
+     * 4 bytes unsigned, 该字段指示用户提供的注释数。它可能表示用户提供的评论为零，在这种情况下数据包中没有其他字段。
+     * 一定不要表示评论太多，以至于评论字符串长度将需要比其余的可用数据更多的数据数据包
+     */
+    userCommentListLength;
+    comments;
+    constructor() {
+        this.vendorString = "v0.9.0-15-gdd5cd674";
+        this.vendorStringLength = this.vendorString.length;
+        this.userCommentListLength = 0;
+        this.comments = new UserComment();
+    }
+    read(ioReader) {
+        this.vendorStringLength = ioReader.readUint32();
+        this.vendorString = ioReader.readString(this.vendorStringLength);
+        this.userCommentListLength = ioReader.readUint32();
+        if (this.userCommentListLength) {
+            this.comments.read(ioReader, this.userCommentListLength);
+        }
+    }
+    write(ioWriter) {
+        const buffer = common_util_text__WEBPACK_IMPORTED_MODULE_1__.encode(this.vendorString);
+        ioWriter.writeUint32(buffer.length);
+        ioWriter.writeBuffer(buffer);
+        ioWriter.writeUint32(this.comments.list.length);
+        this.comments.write(ioWriter);
+    }
+    addComment(comment) {
+        this.comments.addComment(comment);
+    }
+    setCodec(codecpar) {
+    }
+}
+
+
+/***/ }),
+
+/***/ "./src/avformat/formats/ogg/vorbis.ts":
+/*!********************************************!*\
+  !*** ./src/avformat/formats/ogg/vorbis.ts ***!
+  \********************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   VorbisOggsCommentPage: () => (/* binding */ VorbisOggsCommentPage),
+/* harmony export */   VorbisOggsIdPage: () => (/* binding */ VorbisOggsIdPage),
+/* harmony export */   addVorbisComment: () => (/* binding */ addVorbisComment),
+/* harmony export */   parseVorbisComment: () => (/* binding */ parseVorbisComment)
+/* harmony export */ });
+/* harmony import */ var _OggPage__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./OggPage */ "./src/avformat/formats/ogg/OggPage.ts");
+/* harmony import */ var common_util_object__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! common/util/object */ "./src/common/util/object.ts");
+/* harmony import */ var common_function_isDef__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! common/function/isDef */ "./src/common/function/isDef.ts");
+/*
+ * libmedia oggs vorbis page parser
+ *
+ * 版权所有 (C) 2024 赵高兴
+ * Copyright (C) 2024 Gaoxing Zhao
+ *
+ * 此文件是 libmedia 的一部分
+ * This file is part of libmedia.
+ *
+ * libmedia 是自由软件；您可以根据 GNU Lesser General Public License（GNU LGPL）3.1
+ * 或任何其更新的版本条款重新分发或修改它
+ * libmedia is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3.1 of the License, or (at your option) any later version.
+ *
+ * libmedia 希望能够为您提供帮助，但不提供任何明示或暗示的担保，包括但不限于适销性或特定用途的保证
+ * 您应自行承担使用 libmedia 的风险，并且需要遵守 GNU Lesser General Public License 中的条款和条件。
+ * libmedia is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ */
+
+
+
+const CommentKeyMap = {
+    'album': "album" /* AVStreamMetadataKey.ALBUM */,
+    'artist': "artist" /* AVStreamMetadataKey.ARTIST */,
+    'description': "description" /* AVStreamMetadataKey.DESCRIPTION */,
+    'encoder': "encoder" /* AVStreamMetadataKey.ENCODER */,
+    'title': "title" /* AVStreamMetadataKey.TITLE */,
+    'tracknumber': "track" /* AVStreamMetadataKey.TRACK */,
+    'date': "date" /* AVStreamMetadataKey.DATE */,
+    'genre': "genre" /* AVStreamMetadataKey.GENRE */,
+    'comment': "comment" /* AVStreamMetadataKey.COMMENT */,
+    'albumartist': "albumArtist" /* AVStreamMetadataKey.ALBUM_ARTIST */,
+    'composer': "composer" /* AVStreamMetadataKey.COMPOSER */,
+    'performer': "performer" /* AVStreamMetadataKey.PERFORMER */,
+    'discnumber': "disc" /* AVStreamMetadataKey.DISC */,
+    'organization': "vendor" /* AVStreamMetadataKey.VENDOR */,
+    'copyright': "copyright" /* AVStreamMetadataKey.COPYRIGHT */,
+    'license': "license" /* AVStreamMetadataKey.LICENSE */,
+    'isrc': "isrc" /* AVStreamMetadataKey.ISRC */,
+    'lyrics': "lyrics" /* AVStreamMetadataKey.LYRICS */,
+    'language': "language" /* AVStreamMetadataKey.LANGUAGE */,
+    'label': "vendor" /* AVStreamMetadataKey.VENDOR */,
+    'script': "lyrics" /* AVStreamMetadataKey.LYRICS */,
+    'encoded_by': "vendor" /* AVStreamMetadataKey.VENDOR */
+};
+function parseVorbisComment(list, metadata) {
+    if (!list) {
+        return;
+    }
+    list.forEach((value) => {
+        const l = value.split('=');
+        if (l.length === 2) {
+            const k = l[0].trim().toLowerCase();
+            const v = l[1].trim();
+            if (CommentKeyMap[k]) {
+                metadata[CommentKeyMap[k]] = v;
+            }
+            else {
+                metadata[k.toLowerCase()] = v;
+            }
+        }
+    });
+}
+function addVorbisComment(metadata) {
+    const list = [];
+    common_util_object__WEBPACK_IMPORTED_MODULE_1__.each(CommentKeyMap, (value, key) => {
+        if ((0,common_function_isDef__WEBPACK_IMPORTED_MODULE_2__["default"])(metadata[value])) {
+            list.push(`${key.toUpperCase()}=${metadata[value]}`);
+        }
+    });
+    return list;
+}
+class VorbisOggsIdPage {
+    streamIndex;
+    /**
+     * 8 bits packet_type
+     */
+    packetType;
+    /**
+     * 6 bytes Magic Signature: vorbis
+     */
+    signature;
+    /**
+     * 4 bytes unsigned, 对应值 0x01
+     */
+    version;
+    /**
+     * 1 bytes unsigned, 声道数
+     */
+    channels;
+    /**
+     * 4 bytes unsigned, 原始输入采样率
+     */
+    sampleRate;
+    /**
+     * 4 bytes
+     */
+    bitrateMaximum;
+    /**
+     * 4 bytes
+     */
+    bitrateNominal;
+    /**
+     * 4 bytes
+     */
+    bitrateMinimum;
+    /**
+     * 4 bits
+     */
+    blocksize0;
+    /**
+     * 4 bits
+     */
+    blocksize1;
+    /**
+     * 1 bit
+     */
+    framingFlag;
+    constructor(signature = 'vorbis') {
+        this.signature = signature;
+        this.version = 0;
+        this.channels = 1;
+        this.sampleRate = 48000;
+        this.bitrateMaximum = 0;
+        this.bitrateNominal = 0;
+        this.bitrateMinimum = 0;
+        this.blocksize0 = 2048;
+        this.blocksize1 = 256;
+    }
+    read(ioReader) {
+        this.packetType = ioReader.readUint8();
+        this.signature = ioReader.readString(6);
+        this.version = ioReader.readUint32();
+        this.channels = ioReader.readUint8();
+        this.sampleRate = ioReader.readInt32();
+        this.bitrateMaximum = ioReader.readInt32();
+        this.bitrateNominal = ioReader.readInt32();
+        this.bitrateMinimum = ioReader.readInt32();
+        const block = ioReader.readUint8() & 0xff;
+        this.blocksize0 = Math.pow(2, block >>> 4);
+        this.blocksize1 = Math.pow(2, block & 0x0f);
+        this.framingFlag = ioReader.readUint8();
+    }
+    write(ioWriter) {
+        ioWriter.writeUint8(0x01);
+        ioWriter.writeString(this.signature);
+        ioWriter.writeUint32(this.version);
+        ioWriter.writeUint8(this.channels);
+        ioWriter.writeInt32(this.sampleRate);
+        ioWriter.writeInt32(this.bitrateMaximum);
+        ioWriter.writeInt32(this.bitrateNominal);
+        ioWriter.writeInt32(this.bitrateMinimum);
+        ioWriter.writeUint8((Math.log2(this.blocksize0) << 4) | Math.log2(this.blocksize1));
+        ioWriter.writeUint8(0x01);
+    }
+    setCodec(codecpar) {
+        this.sampleRate = codecpar.sampleRate;
+        this.channels = codecpar.chLayout.nbChannels;
+    }
+}
+class VorbisOggsCommentPage extends _OggPage__WEBPACK_IMPORTED_MODULE_0__.OggsCommentPage {
+    /**
+     * 8 bits packet_type
+     */
+    packetType;
+    /**
+     * 1 bit
+     */
+    framingFlag;
+    constructor(signature = 'vorbis') {
+        super();
+        this.signature = signature;
+        this.packetType = 0x01;
+        this.framingFlag = 0x01;
+    }
+    read(ioReader) {
+        this.packetType = ioReader.readUint8();
+        this.signature = ioReader.readString(6);
+        super.read(ioReader);
+        if (this.signature === 'vorbis') {
+            this.framingFlag = ioReader.readUint8();
+        }
+    }
+    write(ioWriter) {
+        ioWriter.writeUint8(this.packetType);
+        ioWriter.writeString(this.signature);
+        super.write(ioWriter);
+        if (this.signature === 'vorbis') {
+            ioWriter.writeUint8(this.framingFlag);
+        }
+    }
+    addComment(comment) {
+        this.comments.addComment(comment);
+    }
+    setCodec(codecpar) {
+    }
 }
 
 
@@ -714,7 +1108,7 @@ function getBytesByDuration(streams, duration, timeBase) {
 /* harmony export */   "default": () => (/* binding */ seekInBytes)
 /* harmony export */ });
 /* harmony import */ var cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! cheap/ctypeEnumRead */ "./src/cheap/ctypeEnumRead.ts");
-/* harmony import */ var _avutil_struct_rational_ts__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./..\..\avutil\struct\rational.ts */ "./src/avutil/struct/rational.ts");
+/* harmony import */ var _avutil_struct_rational__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./..\..\avutil\struct\rational */ "./src/avutil/struct/rational.ts");
 /* harmony import */ var cheap_std_structAccess__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! cheap/std/structAccess */ "./src/cheap/std/structAccess.ts");
 /* harmony import */ var avutil_constant__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! avutil/constant */ "./src/avutil/constant.ts");
 /* harmony import */ var avutil_util_rational__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! avutil/util/rational */ "./src/avutil/util/rational.ts");
@@ -722,7 +1116,7 @@ function getBytesByDuration(streams, duration, timeBase) {
 /* harmony import */ var avutil_util_avpacket__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! avutil/util/avpacket */ "./src/avutil/util/avpacket.ts");
 /* harmony import */ var avutil_error__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! avutil/error */ "./src/avutil/error.ts");
 /* harmony import */ var common_util_logger__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! common/util/logger */ "./src/common/util/logger.ts");
-var cheap__fileName__0 = "src\\avformat\\function\\seekInBytes.ts";
+const cheap__fileName__0 = "src\\avformat\\function\\seekInBytes.ts";
 
 
 
@@ -732,7 +1126,6 @@ var cheap__fileName__0 = "src\\avformat\\function\\seekInBytes.ts";
 
 
 
-// @ts-ignore
 async function seekInBytes(context, stream, timestamp, firstPacketPos, readAVPacket, syncAVPacket) {
     const now = context.ioReader.getPos();
     const fileSize = await context.ioReader.fileSize();
@@ -747,7 +1140,7 @@ async function seekInBytes(context, stream, timestamp, firstPacketPos, readAVPac
     const pointPts = (0,avutil_util_rational__WEBPACK_IMPORTED_MODULE_4__.avRescaleQ)(timestamp, stream.timeBase, avutil_constant__WEBPACK_IMPORTED_MODULE_3__.AV_MILLI_TIME_BASE_Q);
     // 头十秒直接回到开始位置
     if (pointPts < BigInt(10000)) {
-        common_util_logger__WEBPACK_IMPORTED_MODULE_8__.debug(`seek pts is earlier then 10s, seek to first packet pos(${firstPacketPos}) directly`, cheap__fileName__0, 63);
+        common_util_logger__WEBPACK_IMPORTED_MODULE_8__.debug(`seek pts is earlier then 10s, seek to first packet pos(${firstPacketPos}) directly`, cheap__fileName__0, 62);
         await context.ioReader.seek(firstPacketPos);
         return now;
     }
@@ -772,12 +1165,15 @@ async function seekInBytes(context, stream, timestamp, firstPacketPos, readAVPac
         }
         await context.ioReader.seek(bytes);
         await syncAVPacket(context);
+        if (context.ioReader.flags & 8 /* IOFlags.ABORT */) {
+            break;
+        }
         const now = context.ioReader.getPos();
         let ret = await readAVPacket(context, avpacket);
         if (ret >= 0) {
-            const currentPts = (0,avutil_util_rational__WEBPACK_IMPORTED_MODULE_4__.avRescaleQ)(cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[17](avpacket + 8), (0,cheap_std_structAccess__WEBPACK_IMPORTED_MODULE_2__["default"])(avpacket + 72, _avutil_struct_rational_ts__WEBPACK_IMPORTED_MODULE_1__.Rational), avutil_constant__WEBPACK_IMPORTED_MODULE_3__.AV_MILLI_TIME_BASE_Q);
+            const currentPts = (0,avutil_util_rational__WEBPACK_IMPORTED_MODULE_4__.avRescaleQ2)(cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[17](avpacket + 8), avpacket + 72, avutil_constant__WEBPACK_IMPORTED_MODULE_3__.AV_MILLI_TIME_BASE_Q);
             const diff = currentPts - pointPts;
-            common_util_logger__WEBPACK_IMPORTED_MODULE_8__.debug(`try to seek to pos: ${bytes}, got packet pts: ${cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[17](avpacket + 8)}(${currentPts}ms), diff: ${diff}ms`, cheap__fileName__0, 98);
+            common_util_logger__WEBPACK_IMPORTED_MODULE_8__.debug(`try to seek to pos: ${bytes}, got packet pts: ${cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[17](avpacket + 8)}(${currentPts}ms), diff: ${diff}ms`, cheap__fileName__0, 100);
             // seek 时间戳的前面 10 秒内
             if (diff <= BigInt(0) && -diff < BigInt(10000)) {
                 pos = now;
@@ -799,18 +1195,120 @@ async function seekInBytes(context, stream, timestamp, firstPacketPos, readAVPac
             pos = avutil_constant__WEBPACK_IMPORTED_MODULE_3__.NOPTS_VALUE_BIGINT;
             break;
         }
+        if (context.ioReader.flags & 8 /* IOFlags.ABORT */) {
+            break;
+        }
     }
     (0,avutil_util_avpacket__WEBPACK_IMPORTED_MODULE_6__.destroyAVPacket)(avpacket);
     if (pos !== avutil_constant__WEBPACK_IMPORTED_MODULE_3__.NOPTS_VALUE_BIGINT) {
-        common_util_logger__WEBPACK_IMPORTED_MODULE_8__.debug(`finally seek to pos ${pos}`, cheap__fileName__0, 126);
+        common_util_logger__WEBPACK_IMPORTED_MODULE_8__.debug(`finally seek to pos ${pos}`, cheap__fileName__0, 131);
         await context.ioReader.seek(pos);
         await syncAVPacket(context);
         return now;
     }
     else {
         await context.ioReader.seek(now);
+        if (context.ioReader.flags & 8 /* IOFlags.ABORT */) {
+            return BigInt(avutil_error__WEBPACK_IMPORTED_MODULE_7__.EOF);
+        }
     }
     return BigInt(avutil_error__WEBPACK_IMPORTED_MODULE_7__.FORMAT_NOT_SUPPORT);
+}
+
+
+/***/ }),
+
+/***/ "./src/avutil/codecs/flac.ts":
+/*!***********************************!*\
+  !*** ./src/avutil/codecs/flac.ts ***!
+  \***********************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   BlockSizeTable: () => (/* binding */ BlockSizeTable),
+/* harmony export */   FLAC_MAX_CHANNELS: () => (/* binding */ FLAC_MAX_CHANNELS),
+/* harmony export */   FLAC_STREAMINFO_SIZE: () => (/* binding */ FLAC_STREAMINFO_SIZE),
+/* harmony export */   SampleRateTable: () => (/* binding */ SampleRateTable),
+/* harmony export */   SampleSizeTable: () => (/* binding */ SampleSizeTable),
+/* harmony export */   parseAVCodecParameters: () => (/* binding */ parseAVCodecParameters)
+/* harmony export */ });
+/* unused harmony exports FLAC_MIN_BLOCKSIZE, FLAC_MAX_BLOCKSIZE, FLAC_MIN_FRAME_SIZE */
+/* harmony import */ var common_io_BufferReader__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! common/io/BufferReader */ "./src/common/io/BufferReader.ts");
+/*
+ * libmedia flac util
+ *
+ * 版权所有 (C) 2024 赵高兴
+ * Copyright (C) 2024 Gaoxing Zhao
+ *
+ * 此文件是 libmedia 的一部分
+ * This file is part of libmedia.
+ *
+ * libmedia 是自由软件；您可以根据 GNU Lesser General Public License（GNU LGPL）3.1
+ * 或任何其更新的版本条款重新分发或修改它
+ * libmedia is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3.1 of the License, or (at your option) any later version.
+ *
+ * libmedia 希望能够为您提供帮助，但不提供任何明示或暗示的担保，包括但不限于适销性或特定用途的保证
+ * 您应自行承担使用 libmedia 的风险，并且需要遵守 GNU Lesser General Public License 中的条款和条件。
+ * libmedia is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ */
+
+const FLAC_STREAMINFO_SIZE = 34;
+const FLAC_MAX_CHANNELS = 8;
+const FLAC_MIN_BLOCKSIZE = 16;
+const FLAC_MAX_BLOCKSIZE = 65535;
+const FLAC_MIN_FRAME_SIZE = 10;
+const SampleSizeTable = [0, 8, 12, 0, 16, 20, 24, 32];
+const SampleRateTable = [
+    0, 88200, 176400, 192000, 8000, 16000, 22050,
+    24000, 32000, 44100, 48000, 96000,
+    0, 0, 0, 0
+];
+const BlockSizeTable = [
+    0, 192,
+    576,
+    1152,
+    2304,
+    4608,
+    0, 0,
+    256,
+    512,
+    1024,
+    2048,
+    4096,
+    8192,
+    16384,
+    32768
+];
+function parseAVCodecParameters(stream, extradata) {
+    if (!extradata && stream.sideData[1 /* AVPacketSideDataType.AV_PKT_DATA_NEW_EXTRADATA */]) {
+        extradata = stream.sideData[1 /* AVPacketSideDataType.AV_PKT_DATA_NEW_EXTRADATA */];
+    }
+    if (extradata && extradata.length === FLAC_STREAMINFO_SIZE) {
+        const { bitsPerRawSample, sampleRate, channels } = getAVCodecParameters(extradata);
+        stream.codecpar.bitsPerRawSample = bitsPerRawSample;
+        stream.codecpar.sampleRate = sampleRate;
+        stream.codecpar.chLayout.nbChannels = channels;
+    }
+}
+function getAVCodecParameters(extradata) {
+    const bufferReader = new common_io_BufferReader__WEBPACK_IMPORTED_MODULE_0__["default"](extradata);
+    bufferReader.skip(10);
+    const value = bufferReader.readUint24();
+    const sampleRate = (value >> 4);
+    const channels = ((value & 0x0f) >>> 1) + 1;
+    const bitPerSample = bufferReader.readUint8();
+    return {
+        sampleRate,
+        channels,
+        bitsPerRawSample: (((value & 0x01) << 4) | ((bitPerSample & 0xf0) >>> 4)) + 1
+    };
 }
 
 

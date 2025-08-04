@@ -22,74 +22,120 @@ function loadPlayer(videoUrl) {
     container: document.querySelector('#avp-container'),
     isLive: false,
     getWasm: (type, codecId) => {
+      const defaultVersion = '-atomic'
+      const simdVersion = '-simd'
+      const enableSimd = false
+
+      const getWasmVersion = () => {
+        return enableSimd ? simdVersion : (supportAtomic ? defaultVersion : '')
+      }
+
       switch (type) {
         case 'decoder': {
           if (codecId >= 65536 && codecId <= 65572) {
-            return `/avp/decode/pcm${(supportAtomic ? '-atomic' : '')}.wasm`
+            return `/avp/decode/pcm${getWasmVersion()}.wasm`
+          }
+          if (codecId >= 69632 && codecId <= 69683) {
+            return `/avp/decode/adpcm${getWasmVersion()}.wasm`
           }
           switch (codecId) {
               // mpeg1/2
             case 2:
-              return `/avp/decode/mpeg2video${(supportAtomic ? '-atomic' : '')}.wasm`
+              return `/avp/decode/mpeg2video${getWasmVersion()}.wasm`
               // H264
             case 27:
-              return `/avp/decode/h264${(supportAtomic ? '-atomic' : '')}.wasm`
+              return `/avp/decode/h264${getWasmVersion()}.wasm`
               // theora
             case 30:
-              return `/avp/decode/theora${(supportAtomic ? '-atomic' : '')}.wasm`
+              return `/avp/decode/theora${getWasmVersion()}.wasm`
               // AAC
             case 86018:
-              return `/avp/decode/aac${(supportAtomic ? '-atomic' : '')}.wasm`
+              return `/avp/decode/aac${getWasmVersion()}.wasm`
               // ac3
             case 86019:
-              return `/avp/decode/ac3${(supportAtomic ? '-atomic' : '')}.wasm`
+              return `/avp/decode/ac3${getWasmVersion()}.wasm`
               // eac3
             case 86056:
-              return `/avp/decode/eac3${(supportAtomic ? '-atomic' : '')}.wasm`
+              return `/avp/decode/eac3${getWasmVersion()}.wasm`
               // dts
             case 86020:
-              return `/avp/decode/dca${(supportAtomic ? '-atomic' : '')}.wasm`
+              return `/avp/decode/dca${getWasmVersion()}.wasm`
               // MP3
             case 86017:
-              return `/avp/decode/mp3${(supportAtomic ? '-atomic' : '')}.wasm`
+              return `/avp/decode/mp3${getWasmVersion()}.wasm`
               // HEVC
             case 173:
-              return `/avp/decode/hevc${(supportAtomic ? '-atomic' : '')}.wasm`
+              return `/avp/decode/hevc${getWasmVersion()}.wasm`
               // VVC
             case 196:
-              return `/avp/decode/vvc${(supportAtomic ? '-atomic' : '')}.wasm`
+              return `/avp/decode/vvc${getWasmVersion()}.wasm`
               // Mpeg4
             case 12:
-              return `/avp/decode/mpeg4${(supportAtomic ? '-atomic' : '')}.wasm`
+              return `/avp/decode/mpeg4${getWasmVersion()}.wasm`
               // AV1
             case 225:
-              return `/avp/decode/av1${(supportAtomic ? '-atomic' : '')}.wasm`
+              return `/avp/decode/av1${getWasmVersion()}.wasm`
               // Speex
             case 86051:
-              return `/avp/decode/speex${(supportAtomic ? '-atomic' : '')}.wasm`
+              return `/avp/decode/speex${getWasmVersion()}.wasm`
               // Opus
             case 86076:
-              return `/avp/decode/opus${(supportAtomic ? '-atomic' : '')}.wasm`
+              return `/avp/decode/opus${getWasmVersion()}.wasm`
               // flac
             case 86028:
-              return `/avp/decode/flac${(supportAtomic ? '-atomic' : '')}.wasm`
+              return `/avp/decode/flac${getWasmVersion()}.wasm`
               // vorbis
             case 86021:
-              return `/avp/decode/vorbis${(supportAtomic ? '-atomic' : '')}.wasm`
+              return `/avp/decode/vorbis${getWasmVersion()}.wasm`
               // vp8
             case 139:
-              return `/avp/decode/vp8${(supportAtomic ? '-atomic' : '')}.wasm`
+              return `/avp/decode/vp8${getWasmVersion()}.wasm`
               // vp9
             case 167:
-              return `/avp/decode/vp9${(supportAtomic ? '-atomic' : '')}.wasm`
+              return `/avp/decode/vp9${getWasmVersion()}.wasm`
+            case 86022 :/* AVCodecID.AV_CODEC_ID_DVAUDIO */
+              return `/avp/decode/dvaudio${getWasmVersion()}.wasm`;
+            case 24: /* AVCodecID.AV_CODEC_ID_DVVIDEO */
+              return `/avp/decode/dvvideo${getWasmVersion()}.wasm`;
+            case 3: /* AVCodecID.AV_CODEC_ID_H261 */
+              return `/avp/decode/h261${getWasmVersion()}.wasm`;
+            case 4: /* AVCodecID.AV_CODEC_ID_H263 */
+            case 20: /* AVCodecID.AV_CODEC_ID_H263I */
+            case 19: /* AVCodecID.AV_CODEC_ID_H263P */
+              return `/avp/decode/h263${getWasmVersion()}.wasm`;
+            case 14: /* AVCodecID.AV_CODEC_ID_MSMPEG4V1 */
+            case 15: /* AVCodecID.AV_CODEC_ID_MSMPEG4V2 */
+            case 16 :/* AVCodecID.AV_CODEC_ID_MSMPEG4V3 */
+              return `/avp/decode/msmpeg4${getWasmVersion()}.wasm`;
+            case 5: /* AVCodecID.AV_CODEC_ID_RV10 */
+            case 6 :/* AVCodecID.AV_CODEC_ID_RV20 */
+            case 68: /* AVCodecID.AV_CODEC_ID_RV30 */
+            case 69: /* AVCodecID.AV_CODEC_ID_RV40 */
+              return `/avp/decode/msmpeg4${getWasmVersion()}.wasm`;
+            case 86036: /* AVCodecID.AV_CODEC_ID_COOK */
+            case 86057 :/* AVCodecID.AV_CODEC_ID_SIPR */
+            case 86073: /* AVCodecID.AV_CODEC_ID_RALF */
+              return `/avp/decode/ra${getWasmVersion()}.wasm`;
+            case 86023 :/* AVCodecID.AV_CODEC_ID_WMAV1 */
+            case 86024: /* AVCodecID.AV_CODEC_ID_WMAV2 */
+            case 86052: /* AVCodecID.AV_CODEC_ID_WMAVOICE */
+            case 86054 :/* AVCodecID.AV_CODEC_ID_WMALOSSLESS */
+            case 86053: /* AVCodecID.AV_CODEC_ID_WMAPRO */
+              return `/avp/decode/wma${getWasmVersion()}.wasm`;
+            case 17 :/* AVCodecID.AV_CODEC_ID_WMV1 */
+            case 18: /* AVCodecID.AV_CODEC_ID_WMV2 */
+            case 71 :/* AVCodecID.AV_CODEC_ID_WMV3 */
+              return `/avp/decode/wmv${getWasmVersion()}.wasm`;
+            case 7 :/* AVCodecID.AV_CODEC_ID_MJPEG */
+              return `/avp/decode/mjpeg${getWasmVersion()}.wasm`;
             default:
               return null
           }
         }
         case 'resampler':
-          return `/avp/resample/resample${(supportAtomic ? '-atomic' : '')}.wasm`
+          return `/avp/resample/resample${getWasmVersion()}.wasm`
         case 'stretchpitcher':
-          return `/avp/stretchpitch/stretchpitch${(supportAtomic ? '-atomic' : '')}.wasm`
+          return `/avp/stretchpitch/stretchpitch${getWasmVersion()}.wasm`
       }
     },
     checkUseMES: (streams) => {
@@ -99,6 +145,7 @@ function loadPlayer(videoUrl) {
     enableWebGPU: false,
     // enableWorker: enableWorkerComponent.enableWorker,
     loop: false,
+    enableJitterBuffer: true,
     jitterBufferMax: 4,
     jitterBufferMin: 1,
     lowLatency: true

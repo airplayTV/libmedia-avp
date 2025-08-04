@@ -53,19 +53,21 @@ class AVBSFilter {
 /* harmony export */ });
 /* harmony import */ var cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! cheap/ctypeEnumRead */ "./src/cheap/ctypeEnumRead.ts");
 /* harmony import */ var cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! cheap/ctypeEnumWrite */ "./src/cheap/ctypeEnumWrite.ts");
-/* harmony import */ var _avutil_struct_avcodecparameters_ts__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./..\..\..\avutil\struct\avcodecparameters.ts */ "./src/avutil/struct/avcodecparameters.ts");
+/* harmony import */ var _avutil_struct_avcodecparameters__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./..\..\..\avutil\struct\avcodecparameters */ "./src/avutil/struct/avcodecparameters.ts");
 /* harmony import */ var cheap_std_structAccess__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! cheap/std/structAccess */ "./src/cheap/std/structAccess.ts");
 /* harmony import */ var _AVBSFilter__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../AVBSFilter */ "./src/avformat/bsf/AVBSFilter.ts");
 /* harmony import */ var cheap_std_memory__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! cheap/std/memory */ "./src/cheap/std/memory.ts");
 /* harmony import */ var common_util_logger__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! common/util/logger */ "./src/common/util/logger.ts");
 /* harmony import */ var avutil_error__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! avutil/error */ "./src/avutil/error.ts");
 /* harmony import */ var avutil_constant__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! avutil/constant */ "./src/avutil/constant.ts");
-/* harmony import */ var _codecs_aac__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! ../../codecs/aac */ "./src/avformat/codecs/aac.ts");
+/* harmony import */ var avutil_codecs_aac__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! avutil/codecs/aac */ "./src/avutil/codecs/aac.ts");
 /* harmony import */ var avutil_util_rational__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! avutil/util/rational */ "./src/avutil/util/rational.ts");
 /* harmony import */ var avutil_util_mem__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! avutil/util/mem */ "./src/avutil/util/mem.ts");
 /* harmony import */ var avutil_util_avpacket__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(/*! avutil/util/avpacket */ "./src/avutil/util/avpacket.ts");
 /* harmony import */ var common_util_is__WEBPACK_IMPORTED_MODULE_13__ = __webpack_require__(/*! common/util/is */ "./src/common/util/is.ts");
-var cheap__fileName__4 = "src\\avformat\\bsf\\aac\\ADTS2RawFilter.ts";
+/* harmony import */ var common_function_concatTypeArray__WEBPACK_IMPORTED_MODULE_14__ = __webpack_require__(/*! common/function/concatTypeArray */ "./src/common/function/concatTypeArray.ts");
+const cheap__fileName__5 = "src\\avformat\\bsf\\aac\\ADTS2RawFilter.ts";
+
 
 
 
@@ -84,6 +86,7 @@ var cheap__fileName__4 = "src\\avformat\\bsf\\aac\\ADTS2RawFilter.ts";
 class ADTS2RawFilter extends _AVBSFilter__WEBPACK_IMPORTED_MODULE_4__["default"] {
     streamMuxConfig;
     caches;
+    pendingItem;
     init(codecpar, timeBase) {
         super.init(codecpar, timeBase);
         this.caches = [];
@@ -96,12 +99,29 @@ class ADTS2RawFilter extends _AVBSFilter__WEBPACK_IMPORTED_MODULE_4__["default"]
     }
     sendAVPacket(avpacket) {
         let i = 0;
-        let lastDts = cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[17](avpacket + 16) || cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[17](avpacket + 8);
-        const buffer = (0,cheap_std_memory__WEBPACK_IMPORTED_MODULE_5__.mapUint8Array)(cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[20](avpacket + 24), cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[15](avpacket + 28)).slice();
+        let lastDts = cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[17](avpacket + 16) !== avutil_constant__WEBPACK_IMPORTED_MODULE_8__.NOPTS_VALUE_BIGINT ? cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[17](avpacket + 16) : cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[17](avpacket + 8);
+        let buffer = (0,cheap_std_memory__WEBPACK_IMPORTED_MODULE_5__.mapUint8Array)(cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[20](avpacket + 24), cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[15](avpacket + 28)).slice();
+        if (this.pendingItem) {
+            this.pendingItem.buffer = (0,common_function_concatTypeArray__WEBPACK_IMPORTED_MODULE_14__["default"])(Uint8Array, [this.pendingItem.buffer, buffer.subarray(0, this.pendingItem.miss)]);
+            buffer = buffer.subarray(this.pendingItem.miss);
+            this.caches.push(this.pendingItem);
+            this.pendingItem = null;
+        }
         while (i < buffer.length) {
-            const info = _codecs_aac__WEBPACK_IMPORTED_MODULE_9__.parseADTSHeader(buffer.subarray(i));
+            const info = avutil_codecs_aac__WEBPACK_IMPORTED_MODULE_9__.parseADTSHeader(buffer.subarray(i));
             if (common_util_is__WEBPACK_IMPORTED_MODULE_13__.number(info)) {
-                common_util_logger__WEBPACK_IMPORTED_MODULE_6__.error('AACADTSParser parse failed', cheap__fileName__4, 81);
+                let j = i + 1;
+                for (; j < buffer.length - 1; j++) {
+                    const syncWord = (buffer[j] << 4) | (buffer[j + 1] >> 4);
+                    if (syncWord === 0xfff) {
+                        i = j;
+                        break;
+                    }
+                }
+                if (j < buffer.length - 1) {
+                    continue;
+                }
+                common_util_logger__WEBPACK_IMPORTED_MODULE_6__.error('AACADTSParser parse failed', cheap__fileName__5, 108);
                 return avutil_error__WEBPACK_IMPORTED_MODULE_7__.DATA_INVALID;
             }
             const item = {
@@ -109,6 +129,7 @@ class ADTS2RawFilter extends _AVBSFilter__WEBPACK_IMPORTED_MODULE_4__["default"]
                 buffer: null,
                 extradata: null,
                 duration: avutil_constant__WEBPACK_IMPORTED_MODULE_8__.NOPTS_VALUE,
+                pos: cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[17](avpacket + 56)
             };
             item.buffer = buffer.subarray(i + info.headerLength, i + info.headerLength + info.framePayloadLength);
             this.streamMuxConfig.profile = info.profile;
@@ -123,7 +144,7 @@ class ADTS2RawFilter extends _AVBSFilter__WEBPACK_IMPORTED_MODULE_4__["default"]
                 cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[15](this.inCodecpar + 48, this.streamMuxConfig.profile);
                 cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[15](this.inCodecpar + 136, this.streamMuxConfig.sampleRate);
                 cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[15](this.inCodecpar + 116, this.streamMuxConfig.channels);
-                const extradata = (0,_codecs_aac__WEBPACK_IMPORTED_MODULE_9__.avCodecParameters2Extradata)((0,cheap_std_structAccess__WEBPACK_IMPORTED_MODULE_3__["default"])(this.inCodecpar, _avutil_struct_avcodecparameters_ts__WEBPACK_IMPORTED_MODULE_2__["default"]));
+                const extradata = (0,avutil_codecs_aac__WEBPACK_IMPORTED_MODULE_9__.avCodecParameters2Extradata)((0,cheap_std_structAccess__WEBPACK_IMPORTED_MODULE_3__["default"])(this.inCodecpar, _avutil_struct_avcodecparameters__WEBPACK_IMPORTED_MODULE_2__["default"]));
                 if (cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[20](this.inCodecpar + 12)) {
                     (0,avutil_util_mem__WEBPACK_IMPORTED_MODULE_11__.avFree)(cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[20](this.inCodecpar + 12));
                 }
@@ -132,7 +153,15 @@ class ADTS2RawFilter extends _AVBSFilter__WEBPACK_IMPORTED_MODULE_4__["default"]
                 cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[15](this.inCodecpar + 16, extradata.length);
                 item.extradata = extradata;
             }
-            this.caches.push(item);
+            if (item.buffer.length < info.framePayloadLength) {
+                this.pendingItem = {
+                    ...item,
+                    miss: info.framePayloadLength - item.buffer.length
+                };
+            }
+            else {
+                this.caches.push(item);
+            }
             i += info.aacFrameLength;
             lastDts += duration;
         }
@@ -146,6 +175,7 @@ class ADTS2RawFilter extends _AVBSFilter__WEBPACK_IMPORTED_MODULE_4__["default"]
             (0,cheap_std_memory__WEBPACK_IMPORTED_MODULE_5__.memcpyFromUint8Array)(data, item.buffer.length, item.buffer);
             (0,avutil_util_avpacket__WEBPACK_IMPORTED_MODULE_12__.addAVPacketData)(avpacket, data, item.buffer.length);
             cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[17](avpacket + 16, item.dts), cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[17](avpacket + 8, item.dts);
+            cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[17](avpacket + 56, item.pos);
             cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[17](avpacket + 48, BigInt(Math.floor(item.duration)));
             cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[15](avpacket + 36, cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[15](avpacket + 36) | 1 /* AVPacketFlags.AV_PKT_FLAG_KEY */);
             if (item.extradata) {
@@ -160,6 +190,8 @@ class ADTS2RawFilter extends _AVBSFilter__WEBPACK_IMPORTED_MODULE_4__["default"]
         }
     }
     reset() {
+        this.pendingItem = null;
+        this.caches.length = 0;
         return 0;
     }
 }
@@ -186,10 +218,10 @@ class ADTS2RawFilter extends _AVBSFilter__WEBPACK_IMPORTED_MODULE_4__["default"]
 /* harmony import */ var avutil_util_rational__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! avutil/util/rational */ "./src/avutil/util/rational.ts");
 /* harmony import */ var avutil_util_mem__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! avutil/util/mem */ "./src/avutil/util/mem.ts");
 /* harmony import */ var avutil_util_avpacket__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! avutil/util/avpacket */ "./src/avutil/util/avpacket.ts");
-/* harmony import */ var _codecs_ac3__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! ../../codecs/ac3 */ "./src/avformat/codecs/ac3.ts");
+/* harmony import */ var avutil_codecs_ac3__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! avutil/codecs/ac3 */ "./src/avutil/codecs/ac3.ts");
 /* harmony import */ var common_function_concatTypeArray__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! common/function/concatTypeArray */ "./src/common/function/concatTypeArray.ts");
 /* harmony import */ var common_util_is__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(/*! common/util/is */ "./src/common/util/is.ts");
-var cheap__fileName__4 = "src\\avformat\\bsf\\ac3\\Ac32RawFilter.ts";
+const cheap__fileName__5 = "src\\avformat\\bsf\\ac3\\Ac32RawFilter.ts";
 
 
 
@@ -214,7 +246,7 @@ class Ac32RawFilter extends _AVBSFilter__WEBPACK_IMPORTED_MODULE_2__["default"] 
     }
     sendAVPacket(avpacket) {
         let i = 0;
-        let lastDts = this.lastDts || (cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[17](avpacket + 16) || cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[17](avpacket + 8));
+        let lastDts = this.lastDts || (cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[17](avpacket + 16) !== avutil_constant__WEBPACK_IMPORTED_MODULE_6__.NOPTS_VALUE_BIGINT ? cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[17](avpacket + 16) : cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[17](avpacket + 8));
         let buffer = (0,cheap_std_memory__WEBPACK_IMPORTED_MODULE_3__.mapUint8Array)(cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[20](avpacket + 24), cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[15](avpacket + 28)).slice();
         let firstGot = false;
         let hasCache = !!this.cache;
@@ -228,15 +260,27 @@ class Ac32RawFilter extends _AVBSFilter__WEBPACK_IMPORTED_MODULE_2__["default"] 
                 this.lastDts = lastDts;
                 return 0;
             }
-            const info = _codecs_ac3__WEBPACK_IMPORTED_MODULE_10__.parseHeader(buffer.subarray(i));
+            const info = avutil_codecs_ac3__WEBPACK_IMPORTED_MODULE_10__.parseHeader(buffer.subarray(i));
             if (common_util_is__WEBPACK_IMPORTED_MODULE_12__.number(info)) {
-                common_util_logger__WEBPACK_IMPORTED_MODULE_4__.error('parse ac3 header failed', cheap__fileName__4, 84);
+                let j = i + 1;
+                for (; j < buffer.length - 1; j++) {
+                    const syncWord = (buffer[j] << 8) | buffer[j + 1];
+                    if (syncWord === 0x0B77) {
+                        i = j;
+                        break;
+                    }
+                }
+                if (j < buffer.length - 1) {
+                    continue;
+                }
+                common_util_logger__WEBPACK_IMPORTED_MODULE_4__.error('parse ac3 header failed', cheap__fileName__5, 97);
                 return avutil_error__WEBPACK_IMPORTED_MODULE_5__.DATA_INVALID;
             }
             const item = {
                 dts: lastDts,
                 buffer: null,
                 duration: avutil_constant__WEBPACK_IMPORTED_MODULE_6__.NOPTS_VALUE,
+                pos: cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[17](avpacket + 56)
             };
             let frameLength = info.frameSize;
             item.buffer = buffer.subarray(i, i + frameLength);
@@ -266,6 +310,7 @@ class Ac32RawFilter extends _AVBSFilter__WEBPACK_IMPORTED_MODULE_2__["default"] 
             (0,cheap_std_memory__WEBPACK_IMPORTED_MODULE_3__.memcpyFromUint8Array)(data, item.buffer.length, item.buffer);
             (0,avutil_util_avpacket__WEBPACK_IMPORTED_MODULE_9__.addAVPacketData)(avpacket, data, item.buffer.length);
             cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[17](avpacket + 16, item.dts), cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[17](avpacket + 8, item.dts);
+            cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[17](avpacket + 56, item.pos);
             cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[17](avpacket + 48, BigInt(Math.floor(item.duration)));
             cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[15](avpacket + 36, cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[15](avpacket + 36) | 1 /* AVPacketFlags.AV_PKT_FLAG_KEY */);
             return 0;
@@ -277,6 +322,7 @@ class Ac32RawFilter extends _AVBSFilter__WEBPACK_IMPORTED_MODULE_2__["default"] 
     reset() {
         this.cache = null;
         this.lastDts = BigInt(0);
+        this.caches.length = 0;
         return 0;
     }
 }
@@ -303,10 +349,10 @@ class Ac32RawFilter extends _AVBSFilter__WEBPACK_IMPORTED_MODULE_2__["default"] 
 /* harmony import */ var avutil_util_rational__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! avutil/util/rational */ "./src/avutil/util/rational.ts");
 /* harmony import */ var avutil_util_mem__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! avutil/util/mem */ "./src/avutil/util/mem.ts");
 /* harmony import */ var avutil_util_avpacket__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! avutil/util/avpacket */ "./src/avutil/util/avpacket.ts");
-/* harmony import */ var _codecs_dts__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! ../../codecs/dts */ "./src/avformat/codecs/dts.ts");
+/* harmony import */ var avutil_codecs_dts__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! avutil/codecs/dts */ "./src/avutil/codecs/dts.ts");
 /* harmony import */ var common_function_concatTypeArray__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! common/function/concatTypeArray */ "./src/common/function/concatTypeArray.ts");
 /* harmony import */ var common_util_is__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(/*! common/util/is */ "./src/common/util/is.ts");
-var cheap__fileName__4 = "src\\avformat\\bsf\\dts\\Dts2RawFilter.ts";
+const cheap__fileName__5 = "src\\avformat\\bsf\\dts\\Dts2RawFilter.ts";
 
 
 
@@ -331,7 +377,7 @@ class Dts2RawFilter extends _AVBSFilter__WEBPACK_IMPORTED_MODULE_2__["default"] 
     }
     sendAVPacket(avpacket) {
         let i = 0;
-        let lastDts = this.lastDts || (cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[17](avpacket + 16) || cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[17](avpacket + 8));
+        let lastDts = this.lastDts || (cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[17](avpacket + 16) !== avutil_constant__WEBPACK_IMPORTED_MODULE_6__.NOPTS_VALUE_BIGINT ? cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[17](avpacket + 16) : cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[17](avpacket + 8));
         let buffer = (0,cheap_std_memory__WEBPACK_IMPORTED_MODULE_3__.mapUint8Array)(cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[20](avpacket + 24), cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[15](avpacket + 28)).slice();
         let firstGot = false;
         let hasCache = !!this.cache;
@@ -345,15 +391,27 @@ class Dts2RawFilter extends _AVBSFilter__WEBPACK_IMPORTED_MODULE_2__["default"] 
                 this.lastDts = lastDts;
                 return 0;
             }
-            const info = _codecs_dts__WEBPACK_IMPORTED_MODULE_10__.parseHeader(buffer.subarray(i));
+            const info = avutil_codecs_dts__WEBPACK_IMPORTED_MODULE_10__.parseHeader(buffer.subarray(i));
             if (common_util_is__WEBPACK_IMPORTED_MODULE_12__.number(info)) {
-                common_util_logger__WEBPACK_IMPORTED_MODULE_4__.error('parse dts header failed', cheap__fileName__4, 84);
+                let j = i + 1;
+                for (; j < buffer.length - 3; j++) {
+                    const syncWord = (buffer[j] << 24) | (buffer[j + 1] << 16) | (buffer[j + 2] << 8) | buffer[j + 3];
+                    if (syncWord === 0x7ffe8001 || syncWord === 0xfe7f0180) {
+                        i = j;
+                        break;
+                    }
+                }
+                if (j < buffer.length - 3) {
+                    continue;
+                }
+                common_util_logger__WEBPACK_IMPORTED_MODULE_4__.error('parse dts header failed', cheap__fileName__5, 97);
                 return avutil_error__WEBPACK_IMPORTED_MODULE_5__.DATA_INVALID;
             }
             const item = {
                 dts: lastDts,
                 buffer: null,
                 duration: avutil_constant__WEBPACK_IMPORTED_MODULE_6__.NOPTS_VALUE,
+                pos: cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[17](avpacket + 56)
             };
             let frameLength = info.frameSize;
             item.buffer = buffer.subarray(i, i + frameLength);
@@ -362,7 +420,7 @@ class Dts2RawFilter extends _AVBSFilter__WEBPACK_IMPORTED_MODULE_2__["default"] 
                 this.lastDts = lastDts;
                 return 0;
             }
-            const duration = (0,avutil_util_rational__WEBPACK_IMPORTED_MODULE_7__.avRescaleQ)(BigInt(Math.floor(((info.sampleBlock * _codecs_dts__WEBPACK_IMPORTED_MODULE_10__.DTS_PCMBLOCK_SAMPLES) / info.sampleRate * avutil_constant__WEBPACK_IMPORTED_MODULE_6__.AV_TIME_BASE))), avutil_constant__WEBPACK_IMPORTED_MODULE_6__.AV_TIME_BASE_Q, this.inTimeBase);
+            const duration = (0,avutil_util_rational__WEBPACK_IMPORTED_MODULE_7__.avRescaleQ)(BigInt(Math.floor(((info.sampleBlock * avutil_codecs_dts__WEBPACK_IMPORTED_MODULE_10__.DTS_PCMBLOCK_SAMPLES) / info.sampleRate * avutil_constant__WEBPACK_IMPORTED_MODULE_6__.AV_TIME_BASE))), avutil_constant__WEBPACK_IMPORTED_MODULE_6__.AV_TIME_BASE_Q, this.inTimeBase);
             item.duration = Number(duration);
             this.caches.push(item);
             i += frameLength;
@@ -383,6 +441,7 @@ class Dts2RawFilter extends _AVBSFilter__WEBPACK_IMPORTED_MODULE_2__["default"] 
             (0,cheap_std_memory__WEBPACK_IMPORTED_MODULE_3__.memcpyFromUint8Array)(data, item.buffer.length, item.buffer);
             (0,avutil_util_avpacket__WEBPACK_IMPORTED_MODULE_9__.addAVPacketData)(avpacket, data, item.buffer.length);
             cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[17](avpacket + 16, item.dts), cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[17](avpacket + 8, item.dts);
+            cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[17](avpacket + 56, item.pos);
             cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[17](avpacket + 48, BigInt(Math.floor(item.duration)));
             cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[15](avpacket + 36, cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[15](avpacket + 36) | 1 /* AVPacketFlags.AV_PKT_FLAG_KEY */);
             return 0;
@@ -394,6 +453,7 @@ class Dts2RawFilter extends _AVBSFilter__WEBPACK_IMPORTED_MODULE_2__["default"] 
     reset() {
         this.cache = null;
         this.lastDts = BigInt(0);
+        this.caches.length = 0;
         return 0;
     }
 }
@@ -421,9 +481,9 @@ class Dts2RawFilter extends _AVBSFilter__WEBPACK_IMPORTED_MODULE_2__["default"] 
 /* harmony import */ var avutil_util_mem__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! avutil/util/mem */ "./src/avutil/util/mem.ts");
 /* harmony import */ var avutil_util_avpacket__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! avutil/util/avpacket */ "./src/avutil/util/avpacket.ts");
 /* harmony import */ var _formats_mp3_frameHeader__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! ../../formats/mp3/frameHeader */ "./src/avformat/formats/mp3/frameHeader.ts");
-/* harmony import */ var _codecs_mp3__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! ../../codecs/mp3 */ "./src/avformat/codecs/mp3.ts");
+/* harmony import */ var avutil_codecs_mp3__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! avutil/codecs/mp3 */ "./src/avutil/codecs/mp3.ts");
 /* harmony import */ var common_function_concatTypeArray__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(/*! common/function/concatTypeArray */ "./src/common/function/concatTypeArray.ts");
-var cheap__fileName__4 = "src\\avformat\\bsf\\mp3\\Mp32RawFilter.ts";
+const cheap__fileName__5 = "src\\avformat\\bsf\\mp3\\Mp32RawFilter.ts";
 
 
 
@@ -450,7 +510,7 @@ class Mp32RawFilter extends _AVBSFilter__WEBPACK_IMPORTED_MODULE_2__["default"] 
     }
     sendAVPacket(avpacket) {
         let i = 0;
-        let lastDts = this.lastDts || (cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[17](avpacket + 16) || cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[17](avpacket + 8));
+        let lastDts = this.lastDts || (cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[17](avpacket + 16) !== avutil_constant__WEBPACK_IMPORTED_MODULE_6__.NOPTS_VALUE_BIGINT ? cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[17](avpacket + 16) : cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[17](avpacket + 8));
         let buffer = (0,cheap_std_memory__WEBPACK_IMPORTED_MODULE_3__.mapUint8Array)(cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[20](avpacket + 24), cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[15](avpacket + 28)).slice();
         let firstGot = false;
         let hasCache = !!this.cache;
@@ -461,7 +521,18 @@ class Mp32RawFilter extends _AVBSFilter__WEBPACK_IMPORTED_MODULE_2__["default"] 
         while (i < buffer.length) {
             const syncWord = (buffer[i] << 4) | ((buffer[i + 1] >> 4) & 0x0e);
             if (syncWord !== 0xFFE) {
-                common_util_logger__WEBPACK_IMPORTED_MODULE_4__.error(`found syncWord not 0xFFE, got: 0x${syncWord.toString(16)}`, cheap__fileName__4, 83);
+                let j = i + 1;
+                for (; j < buffer.length - 1; j++) {
+                    const syncWord = (buffer[j] << 4) | ((buffer[j + 1] >> 4) & 0x0e);
+                    if (syncWord === 0xFFE) {
+                        i = j;
+                        break;
+                    }
+                }
+                if (j < buffer.length - 1) {
+                    continue;
+                }
+                common_util_logger__WEBPACK_IMPORTED_MODULE_4__.error(`found syncWord not 0xFFE, got: 0x${syncWord.toString(16)}`, cheap__fileName__5, 94);
                 return avutil_error__WEBPACK_IMPORTED_MODULE_5__.DATA_INVALID;
             }
             const ver = (buffer[1] >>> 3) & 0x03;
@@ -472,8 +543,9 @@ class Mp32RawFilter extends _AVBSFilter__WEBPACK_IMPORTED_MODULE_2__["default"] 
                 buffer: null,
                 extradata: null,
                 duration: avutil_constant__WEBPACK_IMPORTED_MODULE_6__.NOPTS_VALUE,
+                pos: cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[17](avpacket + 56)
             };
-            const sampleRate = _codecs_mp3__WEBPACK_IMPORTED_MODULE_11__.getSampleRateByVersionIndex(ver, samplingFreqIndex);
+            const sampleRate = avutil_codecs_mp3__WEBPACK_IMPORTED_MODULE_11__.getSampleRateByVersionIndex(ver, samplingFreqIndex);
             _formats_mp3_frameHeader__WEBPACK_IMPORTED_MODULE_10__.parse(this.frameHeader, (buffer[i] << 24) | (buffer[i + 1] << 16) | (buffer[i + 2] << 8) | buffer[i + 3]);
             let frameLength = _formats_mp3_frameHeader__WEBPACK_IMPORTED_MODULE_10__.getFrameLength(this.frameHeader, sampleRate);
             item.buffer = buffer.subarray(i, i + frameLength);
@@ -503,6 +575,7 @@ class Mp32RawFilter extends _AVBSFilter__WEBPACK_IMPORTED_MODULE_2__["default"] 
             (0,cheap_std_memory__WEBPACK_IMPORTED_MODULE_3__.memcpyFromUint8Array)(data, item.buffer.length, item.buffer);
             (0,avutil_util_avpacket__WEBPACK_IMPORTED_MODULE_9__.addAVPacketData)(avpacket, data, item.buffer.length);
             cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[17](avpacket + 16, item.dts), cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[17](avpacket + 8, item.dts);
+            cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[17](avpacket + 56, item.pos);
             cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[17](avpacket + 48, BigInt(Math.floor(item.duration)));
             cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumWrite[15](avpacket + 36, cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[15](avpacket + 36) | 1 /* AVPacketFlags.AV_PKT_FLAG_KEY */);
             return 0;
@@ -514,965 +587,9 @@ class Mp32RawFilter extends _AVBSFilter__WEBPACK_IMPORTED_MODULE_2__["default"] 
     reset() {
         this.cache = null;
         this.lastDts = BigInt(0);
+        this.caches.length = 0;
         return 0;
     }
-}
-
-
-/***/ }),
-
-/***/ "./src/avformat/codecs/aac.ts":
-/*!************************************!*\
-  !*** ./src/avformat/codecs/aac.ts ***!
-  \************************************/
-/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
-
-/* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   AACProfile2Name: () => (/* binding */ AACProfile2Name),
-/* harmony export */   avCodecParameters2Extradata: () => (/* binding */ avCodecParameters2Extradata),
-/* harmony export */   parseADTSHeader: () => (/* binding */ parseADTSHeader),
-/* harmony export */   parseAVCodecParameters: () => (/* binding */ parseAVCodecParameters),
-/* harmony export */   parseLATMHeader: () => (/* binding */ parseLATMHeader)
-/* harmony export */ });
-/* unused harmony exports MPEG4SamplingFrequencyIndex, MPEG4SamplingFrequencies, MPEG4Channels, getAVCodecParameters */
-/* harmony import */ var avutil_constant__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! avutil/constant */ "./src/avutil/constant.ts");
-/* harmony import */ var common_io_BitReader__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! common/io/BitReader */ "./src/common/io/BitReader.ts");
-/*
- * libmedia aac util
- *
- * 版权所有 (C) 2024 赵高兴
- * Copyright (C) 2024 Gaoxing Zhao
- *
- * 此文件是 libmedia 的一部分
- * This file is part of libmedia.
- *
- * libmedia 是自由软件；您可以根据 GNU Lesser General Public License（GNU LGPL）3.1
- * 或任何其更新的版本条款重新分发或修改它
- * libmedia is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 3.1 of the License, or (at your option) any later version.
- *
- * libmedia 希望能够为您提供帮助，但不提供任何明示或暗示的担保，包括但不限于适销性或特定用途的保证
- * 您应自行承担使用 libmedia 的风险，并且需要遵守 GNU Lesser General Public License 中的条款和条件。
- * libmedia is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- */
-
-
-const AACProfile2Name = {
-    [1 /* MPEG4AudioObjectTypes.AAC_MAIN */]: 'Main',
-    [2 /* MPEG4AudioObjectTypes.AAC_LC */]: 'LC',
-    [3 /* MPEG4AudioObjectTypes.AAC_SSR */]: 'LC',
-    [4 /* MPEG4AudioObjectTypes.AAC_LTP */]: 'LC',
-    [5 /* MPEG4AudioObjectTypes.AAC_SBR */]: 'HE',
-    [6 /* MPEG4AudioObjectTypes.AAC_SCALABLE */]: 'HE'
-};
-const MPEG4SamplingFrequencyIndex = {
-    96000: 0,
-    88200: 1,
-    64000: 2,
-    48000: 3,
-    44100: 4,
-    32000: 5,
-    24000: 6,
-    22050: 7,
-    16000: 8,
-    12000: 9,
-    11025: 10,
-    8000: 11,
-    7350: 12
-};
-const MPEG4SamplingFrequencies = [
-    96000,
-    88200,
-    64000,
-    48000,
-    44100,
-    32000,
-    24000,
-    22050,
-    16000,
-    12000,
-    11025,
-    8000,
-    7350,
-    avutil_constant__WEBPACK_IMPORTED_MODULE_0__.NOPTS_VALUE,
-    avutil_constant__WEBPACK_IMPORTED_MODULE_0__.NOPTS_VALUE,
-    avutil_constant__WEBPACK_IMPORTED_MODULE_0__.NOPTS_VALUE
-];
-const MPEG4Channels = [
-    avutil_constant__WEBPACK_IMPORTED_MODULE_0__.NOPTS_VALUE,
-    1,
-    2,
-    3,
-    4,
-    5,
-    6,
-    7
-];
-/**
- * 解析 AAC AudioSpecificConfig
- *
- *             frequency
- *              44100Hz        fill bit
- *               4 bit          3 bit
- *              -------         -----
- *    0 0 0 1 0 0 1 0 0 0 0 1 0 0 0 0
- *    ---------         -------
- *      5 bit            4 bit
- *     AAC LC           fl, fr
- *    profile           channel
- *
- * url: https://wiki.multimedia.cx/index.php/MPEG-4_Audio#Audio_Specific_Config
- *
- */
-function getAVCodecParameters(extradata) {
-    let profile = avutil_constant__WEBPACK_IMPORTED_MODULE_0__.NOPTS_VALUE;
-    let sampleRate = avutil_constant__WEBPACK_IMPORTED_MODULE_0__.NOPTS_VALUE;
-    let channels = avutil_constant__WEBPACK_IMPORTED_MODULE_0__.NOPTS_VALUE;
-    if (extradata.length >= 2) {
-        profile = (extradata[0] >> 3) & 0x1f;
-        sampleRate = MPEG4SamplingFrequencies[((extradata[0] & 0x07) << 1)
-            | (extradata[1] >> 7)] ?? 48000;
-        channels = MPEG4Channels[(extradata[1] >> 3) & 0x0f] ?? 2;
-    }
-    return {
-        profile,
-        sampleRate,
-        channels
-    };
-}
-function parseAVCodecParameters(stream, extradata) {
-    if (!extradata && stream.sideData[1 /* AVPacketSideDataType.AV_PKT_DATA_NEW_EXTRADATA */]) {
-        extradata = stream.sideData[1 /* AVPacketSideDataType.AV_PKT_DATA_NEW_EXTRADATA */];
-    }
-    if (extradata) {
-        const { profile, sampleRate, channels } = getAVCodecParameters(extradata);
-        stream.codecpar.profile = profile;
-        stream.codecpar.sampleRate = sampleRate;
-        stream.codecpar.chLayout.nbChannels = channels;
-    }
-}
-function avCodecParameters2Extradata(codecpar) {
-    const samplingFreqIndex = MPEG4SamplingFrequencyIndex[codecpar.sampleRate];
-    const channelConfig = codecpar.chLayout.nbChannels;
-    const extradata = new Uint8Array(2);
-    extradata[0] = ((codecpar.profile & 0x1f) << 3) | ((samplingFreqIndex & 0x0e) >> 1);
-    extradata[1] = ((samplingFreqIndex & 0x01) << 7) | ((channelConfig & 0x0f) << 3);
-    return extradata;
-}
-/**
- *
- * adts 封装转 raw
- *
- * bits
- * - 12  syncword
- * - 1   ID (MPEG 标识位，固定为 1)
- * - 2   Layer ( 固定为 0)
- * - 1   Protection Absent ( 指示是否有 CRC 校验，1 表示没有校验）
- * - 2   Profile
- * - 4   Sampling Frequency Index ( 采样率的索引）
- * - 1   Private Bit ( 保留位，一般设置为 0)
- * - 3   Channel Configuration ( 音频通道数）
- * - 1   Original Copy ( 原始拷贝标志位，一般设置为 0)
- * - 1   Home ( 保留位，一般设置为 0)
- * - 1   Copyright Identification Bit（置 0）
- * - 1   Copyright Identification Start（置 0）
- * - 13  Frame Length ( 帧长度，包括 ADTS 头和音频帧数据的长度）
- * - 11  Buffer Fullness ( 缓冲区满度，可用于音频流的同步）
- * - 2   Number of Raw Data Blocks in Frame ( 帧中原始数据块的数量）
- * - 16  CRC (Protection Absent 控制）
- * - N  raw aac data
- *
- */
-function parseADTSHeader(buffer) {
-    if (buffer.length < 7) {
-        return -1;
-    }
-    const syncWord = (buffer[0] << 4) | (buffer[1] >> 4);
-    if (syncWord !== 0xFFF) {
-        return -1;
-    }
-    /*
-      * const id = (buffer[1] & 0x08) >>> 3
-      * const layer = (buffer[1] & 0x06) >>> 1
-      */
-    const protectionAbsent = buffer[1] & 0x01;
-    const profile = (buffer[2] & 0xC0) >>> 6;
-    const samplingFrequencyIndex = (buffer[2] & 0x3C) >>> 2;
-    const channelConfiguration = ((buffer[2] & 0x01) << 2) | ((buffer[3] & 0xC0) >>> 6);
-    // adts_variable_header()
-    const aacFrameLength = ((buffer[3] & 0x03) << 11)
-        | (buffer[4] << 3)
-        | ((buffer[5] & 0xE0) >>> 5);
-    const numberOfRawDataBlocksInFrame = buffer[6] & 0x03;
-    let headerLength = protectionAbsent === 1 ? 7 : 9;
-    let framePayloadLength = aacFrameLength - headerLength;
-    return {
-        syncWord,
-        profile: profile + 1,
-        sampleRate: MPEG4SamplingFrequencies[samplingFrequencyIndex],
-        channels: MPEG4Channels[channelConfiguration],
-        aacFrameLength,
-        numberOfRawDataBlocksInFrame,
-        headerLength,
-        framePayloadLength
-    };
-}
-function parseLATMHeader(buffer, bitReader) {
-    if (!bitReader) {
-        bitReader = new common_io_BitReader__WEBPACK_IMPORTED_MODULE_1__["default"]();
-        bitReader.appendBuffer(buffer);
-    }
-    function getLATMValue() {
-        const bytesForValue = bitReader.readU(2);
-        let value = 0;
-        for (let i = 0; i <= bytesForValue; i++) {
-            value = value << 8;
-            value = value | bitReader.readU(8);
-        }
-        return value;
-    }
-    const now = bitReader.getPointer();
-    const info = {
-        syncWord: 0,
-        profile: 0,
-        sampleRate: 0,
-        channels: 0,
-        useSameStreamMux: false,
-        headerLength: 0,
-        framePayloadLength: 0,
-        muxLengthBytes: 0
-    };
-    const syncWord = bitReader.readU(11);
-    if (syncWord !== 0x2B7) {
-        return -1;
-    }
-    info.syncWord = syncWord;
-    info.muxLengthBytes = bitReader.readU(13);
-    const useSameStreamMux = bitReader.readU1() === 0x01;
-    info.useSameStreamMux = useSameStreamMux;
-    if (!useSameStreamMux) {
-        const audioMuxVersion = bitReader.readU1() === 0x01;
-        const audioMuxVersionA = audioMuxVersion && bitReader.readU1() === 0x01;
-        if (audioMuxVersionA) {
-            return -1;
-        }
-        if (audioMuxVersion) {
-            getLATMValue();
-        }
-        const allStreamsSameTimeFraming = bitReader.readU1() === 0x01;
-        if (!allStreamsSameTimeFraming) {
-            return -1;
-        }
-        const numSubFrames = bitReader.readU(6);
-        if (numSubFrames !== 0) {
-            return -1;
-        }
-        const numProgram = bitReader.readU(4);
-        if (numProgram !== 0) {
-            return -1;
-        }
-        const numLayer = bitReader.readU(3);
-        if (numLayer !== 0) {
-            return -1;
-        }
-        let fillBits = audioMuxVersion ? getLATMValue() : 0;
-        const audioObjectType = bitReader.readU(5);
-        fillBits -= 5;
-        const samplingFreqIndex = bitReader.readU(4);
-        fillBits -= 4;
-        const channelConfig = bitReader.readU(4);
-        fillBits -= 4;
-        bitReader.readU(3);
-        fillBits -= 3;
-        if (fillBits > 0) {
-            bitReader.readU(fillBits);
-        }
-        const frameLengthType = bitReader.readU(3);
-        if (frameLengthType === 0) {
-            bitReader.readU(8);
-        }
-        else {
-            return -1;
-        }
-        const otherDataPresent = bitReader.readU1() === 0x01;
-        if (otherDataPresent) {
-            if (audioMuxVersion) {
-                getLATMValue();
-            }
-            else {
-                let otherDataLenBits = 0;
-                while (true) {
-                    otherDataLenBits = otherDataLenBits << 8;
-                    const otherDataLenEsc = bitReader.readU1() === 0x01;
-                    const otherDataLenTmp = bitReader.readU(8);
-                    otherDataLenBits += otherDataLenTmp;
-                    if (!otherDataLenEsc) {
-                        break;
-                    }
-                }
-            }
-        }
-        const crcCheckPresent = bitReader.readU1() === 0x01;
-        if (crcCheckPresent) {
-            bitReader.readU(8);
-        }
-        info.profile = audioObjectType + 1;
-        info.sampleRate = MPEG4SamplingFrequencies[samplingFreqIndex];
-        info.channels = MPEG4Channels[channelConfig];
-    }
-    let length = 0;
-    while (true) {
-        const tmp = bitReader.readU(8);
-        length += tmp;
-        if (tmp !== 0xff) {
-            break;
-        }
-    }
-    info.framePayloadLength = length;
-    info.headerLength = bitReader.getPointer() - now + (bitReader.getBitLeft() === 8 ? 0 : 1);
-    return info;
-}
-
-
-/***/ }),
-
-/***/ "./src/avformat/codecs/ac3.ts":
-/*!************************************!*\
-  !*** ./src/avformat/codecs/ac3.ts ***!
-  \************************************/
-/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
-
-/* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   AC3ChannelLayout: () => (/* binding */ AC3ChannelLayout),
-/* harmony export */   parseHeader: () => (/* binding */ parseHeader)
-/* harmony export */ });
-/* harmony import */ var common_io_BitReader__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! common/io/BitReader */ "./src/common/io/BitReader.ts");
-/*
- * libmedia ac3 util
- *
- * 版权所有 (C) 2024 赵高兴
- * Copyright (C) 2024 Gaoxing Zhao
- *
- * 此文件是 libmedia 的一部分
- * This file is part of libmedia.
- *
- * libmedia 是自由软件；您可以根据 GNU Lesser General Public License（GNU LGPL）3.1
- * 或任何其更新的版本条款重新分发或修改它
- * libmedia is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 3.1 of the License, or (at your option) any later version.
- *
- * libmedia 希望能够为您提供帮助，但不提供任何明示或暗示的担保，包括但不限于适销性或特定用途的保证
- * 您应自行承担使用 libmedia 的风险，并且需要遵守 GNU Lesser General Public License 中的条款和条件。
- * libmedia is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- */
-
-const AC3ChannelLayout = [
-    3 /* AV_CH_LAYOUT.AV_CH_LAYOUT_STEREO */,
-    4 /* AV_CH_LAYOUT.AV_CH_LAYOUT_MONO */,
-    3 /* AV_CH_LAYOUT.AV_CH_LAYOUT_STEREO */,
-    7 /* AV_CH_LAYOUT.AV_CH_LAYOUT_SURROUND */,
-    259 /* AV_CH_LAYOUT.AV_CH_LAYOUT_2_1 */,
-    263 /* AV_CH_LAYOUT.AV_CH_LAYOUT_4POINT0 */,
-    1539 /* AV_CH_LAYOUT.AV_CH_LAYOUT_2_2 */,
-    1543 /* AV_CH_LAYOUT.AV_CH_LAYOUT_5POINT0 */
-];
-const AC3FrameSizeTab = [
-    [64, 69, 96],
-    [64, 70, 96],
-    [80, 87, 120],
-    [80, 88, 120],
-    [96, 104, 144],
-    [96, 105, 144],
-    [112, 121, 168],
-    [112, 122, 168],
-    [128, 139, 192],
-    [128, 140, 192],
-    [160, 174, 240],
-    [160, 175, 240],
-    [192, 208, 288],
-    [192, 209, 288],
-    [224, 243, 336],
-    [224, 244, 336],
-    [256, 278, 384],
-    [256, 279, 384],
-    [320, 348, 480],
-    [320, 349, 480],
-    [384, 417, 576],
-    [384, 418, 576],
-    [448, 487, 672],
-    [448, 488, 672],
-    [512, 557, 768],
-    [512, 558, 768],
-    [640, 696, 960],
-    [640, 697, 960],
-    [768, 835, 1152],
-    [768, 836, 1152],
-    [896, 975, 1344],
-    [896, 976, 1344],
-    [1024, 1114, 1536],
-    [1024, 1115, 1536],
-    [1152, 1253, 1728],
-    [1152, 1254, 1728],
-    [1280, 1393, 1920],
-    [1280, 1394, 1920],
-];
-const CenterLevelsTab = [4, 5, 6, 5];
-const SurroundLevelsTab = [4, 6, 7, 6];
-const AC3SampleRateTab = [48000, 44100, 32000, 0];
-const AC3BitrateTab = [
-    32, 40, 48, 56, 64, 80, 96, 112, 128,
-    160, 192, 224, 256, 320, 384, 448, 512, 576, 640
-];
-const AC3ChannelsTab = [
-    2, 1, 2, 3, 3, 4, 4, 5
-];
-const EAC3Blocks = [
-    1, 2, 3, 6
-];
-const AC3_HEADER_SIZE = 7;
-function parseHeader(buf) {
-    const bitReader = new common_io_BitReader__WEBPACK_IMPORTED_MODULE_0__["default"](buf.length);
-    bitReader.appendBuffer(buf);
-    const info = {
-        syncWord: 0,
-        crc1: 0,
-        srCode: 0,
-        bitstreamId: 0,
-        bitstreamMode: 0,
-        channelMode: 0,
-        lfeOn: 0,
-        frameType: 0,
-        substreamId: 0,
-        centerMixLevel: 0,
-        surroundMixLevel: 0,
-        channelMap: 0,
-        numBlocks: 0,
-        dolbySurroundMode: 0,
-        srShift: 0,
-        sampleRate: 0,
-        bitrate: 0,
-        channels: 0,
-        frameSize: 0,
-        channelLayout: BigInt(0),
-        ac3BitrateCode: 0
-    };
-    info.syncWord = bitReader.readU(16);
-    if (info.syncWord !== 0x0B77) {
-        return -1;
-    }
-    info.bitstreamId = bitReader.peekU(29) & 0x1f;
-    if (info.bitstreamId > 16) {
-        return -2;
-    }
-    info.numBlocks = 6;
-    info.ac3BitrateCode = -1;
-    info.centerMixLevel = 5;
-    info.surroundMixLevel = 6;
-    info.dolbySurroundMode = 0 /* AC3DolbySurroundMode.AC3_DSURMOD_NOTINDICATED */;
-    if (info.bitstreamId <= 10) {
-        info.crc1 = bitReader.readU(16);
-        info.srCode = bitReader.readU(2);
-        if (info.srCode === 3) {
-            return -3;
-        }
-        const frameSizeCode = bitReader.readU(6);
-        if (frameSizeCode > 37) {
-            return -4;
-        }
-        info.ac3BitrateCode = (frameSizeCode >> 1);
-        bitReader.readU(5);
-        info.bitstreamMode = bitReader.readU(3);
-        info.channelMode = bitReader.readU(3);
-        if (info.channelMode == 2 /* AC3ChannelMode.AC3_CHMODE_STEREO */) {
-            info.dolbySurroundMode = bitReader.readU(2);
-        }
-        else {
-            if ((info.channelMode & 1) && info.channelMode != 1 /* AC3ChannelMode.AC3_CHMODE_MONO */) {
-                info.centerMixLevel = CenterLevelsTab[bitReader.readU(2)];
-            }
-            if (info.channelMode & 4) {
-                info.surroundMixLevel = SurroundLevelsTab[bitReader.readU(2)];
-            }
-        }
-        info.lfeOn = bitReader.readU(1);
-        info.srShift = Math.max(info.bitstreamId, 8) - 8;
-        info.sampleRate = AC3SampleRateTab[info.srCode] >> info.srShift;
-        info.bitrate = (AC3BitrateTab[info.ac3BitrateCode] * 1000) >> info.srShift;
-        info.channels = AC3ChannelsTab[info.channelMode] + info.lfeOn;
-        info.frameSize = AC3FrameSizeTab[frameSizeCode][info.srCode] * 2;
-        info.frameType = 2 /* EAC3FrameType.EAC3_FRAME_TYPE_AC3_CONVERT */;
-        info.substreamId = 0;
-    }
-    else {
-        /* Enhanced AC-3 */
-        info.crc1 = 0;
-        info.frameType = bitReader.readU(2);
-        if (info.frameType == 3 /* EAC3FrameType.EAC3_FRAME_TYPE_RESERVED */) {
-            return -5;
-        }
-        info.substreamId = bitReader.readU(3);
-        info.frameSize = (bitReader.readU(11) + 1) << 1;
-        if (info.frameSize < AC3_HEADER_SIZE) {
-            return -6;
-        }
-        info.srCode = bitReader.readU(2);
-        if (info.srCode == 3) {
-            const srCode2 = bitReader.readU(2);
-            if (srCode2 == 3) {
-                return -7;
-            }
-            info.sampleRate = AC3SampleRateTab[srCode2] / 2;
-            info.srShift = 1;
-        }
-        else {
-            info.numBlocks = EAC3Blocks[bitReader.readU(2)];
-            info.sampleRate = AC3SampleRateTab[info.srCode];
-            info.srShift = 0;
-        }
-        info.channelMode = bitReader.readU(3);
-        info.lfeOn = bitReader.readU(1);
-        info.bitrate = 8 * info.frameSize * info.sampleRate / (info.numBlocks * 256);
-        info.channels = AC3ChannelsTab[info.channelMode] + info.lfeOn;
-    }
-    info.channelLayout = BigInt(AC3ChannelLayout[info.channelMode]);
-    if (info.lfeOn) {
-        info.channelLayout |= BigInt(8 /* AV_CH_LAYOUT.AV_CH_LOW_FREQUENCY */);
-    }
-    return info;
-}
-
-
-/***/ }),
-
-/***/ "./src/avformat/codecs/dts.ts":
-/*!************************************!*\
-  !*** ./src/avformat/codecs/dts.ts ***!
-  \************************************/
-/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
-
-/* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   DTS_PCMBLOCK_SAMPLES: () => (/* binding */ DTS_PCMBLOCK_SAMPLES),
-/* harmony export */   parseHeader: () => (/* binding */ parseHeader)
-/* harmony export */ });
-/* harmony import */ var common_io_BitReader__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! common/io/BitReader */ "./src/common/io/BitReader.ts");
-/* harmony import */ var common_math_align__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! common/math/align */ "./src/common/math/align.ts");
-/*
- * libmedia dts util
- *
- * 版权所有 (C) 2024 赵高兴
- * Copyright (C) 2024 Gaoxing Zhao
- *
- * 此文件是 libmedia 的一部分
- * This file is part of libmedia.
- *
- * libmedia 是自由软件；您可以根据 GNU Lesser General Public License（GNU LGPL）3.1
- * 或任何其更新的版本条款重新分发或修改它
- * libmedia is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 3.1 of the License, or (at your option) any later version.
- *
- * libmedia 希望能够为您提供帮助，但不提供任何明示或暗示的担保，包括但不限于适销性或特定用途的保证
- * 您应自行承担使用 libmedia 的风险，并且需要遵守 GNU Lesser General Public License 中的条款和条件。
- * libmedia is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- */
-
-
-const DTSChannelTab = [1, 2, 2, 2, 2, 3, 3, 4, 4, 5, 6, 6, 6, 7, 8, 8];
-const DTSSampleRateTab = [0, 8000, 16000, 32000, 0, 0, 11025, 22050, 44100, 0, 0, 12000, 24000, 48000, 96000, 192000];
-const DTSBitrateTab = [32000, 56000, 64000, 96000, 112000, 128000, 192000, 224000, 256000, 320000, 384000, 448000,
-    512000, 576000, 640000, 768000, 960000, 1024000, 1152000, 1280000, 1344000, 1408000, 1411200, 1472000, 1536000,
-    1920000, 2048000, 3072000, 3840000, 0, 0, 0
-];
-const DTS_PCMBLOCK_SAMPLES = 32;
-function parseHeader(buf) {
-    const bitReader = new common_io_BitReader__WEBPACK_IMPORTED_MODULE_0__["default"](buf.length);
-    bitReader.appendBuffer(buf);
-    const info = {
-        syncWord: 0,
-        frameType: 0,
-        deficitSamples: 0,
-        crcFlag: 0,
-        sampleBlock: 0,
-        frameSize: 0,
-        channelIndex: 0,
-        sampleRateIndex: 0,
-        bitrateIndex: 0,
-        channels: 0,
-        sampleRate: 0,
-        bitrate: 0
-    };
-    info.syncWord = bitReader.readU(32);
-    if (info.syncWord !== 0x7ffe8001 && info.syncWord !== 0xfe7f0180) {
-        return -1;
-    }
-    info.frameType = bitReader.readU1();
-    info.deficitSamples = bitReader.readU(5) + 1;
-    info.crcFlag = bitReader.readU1();
-    info.sampleBlock = bitReader.readU(7) + 1;
-    info.frameSize = (0,common_math_align__WEBPACK_IMPORTED_MODULE_1__["default"])(bitReader.readU(14) + 1, 4);
-    info.channelIndex = bitReader.readU(6);
-    info.sampleRateIndex = bitReader.readU(4);
-    info.bitrateIndex = bitReader.readU(5);
-    info.channels = DTSChannelTab[info.channelIndex];
-    info.sampleRate = DTSSampleRateTab[info.sampleRateIndex];
-    info.bitrate = DTSBitrateTab[info.bitrateIndex];
-    return info;
-}
-
-
-/***/ }),
-
-/***/ "./src/avformat/codecs/mp3.ts":
-/*!************************************!*\
-  !*** ./src/avformat/codecs/mp3.ts ***!
-  \************************************/
-/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
-
-/* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   MP3Profile2Name: () => (/* binding */ MP3Profile2Name),
-/* harmony export */   getBitRateByVersionLayerIndex: () => (/* binding */ getBitRateByVersionLayerIndex),
-/* harmony export */   getFrameSizeByVersionLayer: () => (/* binding */ getFrameSizeByVersionLayer),
-/* harmony export */   getProfileByLayer: () => (/* binding */ getProfileByLayer),
-/* harmony export */   getSampleRateByVersionIndex: () => (/* binding */ getSampleRateByVersionIndex),
-/* harmony export */   parseAVCodecParameters: () => (/* binding */ parseAVCodecParameters)
-/* harmony export */ });
-/* harmony import */ var avutil_constant__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! avutil/constant */ "./src/avutil/constant.ts");
-/*
- * libmedia mp3 util
- *
- * 版权所有 (C) 2024 赵高兴
- * Copyright (C) 2024 Gaoxing Zhao
- *
- * 此文件是 libmedia 的一部分
- * This file is part of libmedia.
- *
- * libmedia 是自由软件；您可以根据 GNU Lesser General Public License（GNU LGPL）3.1
- * 或任何其更新的版本条款重新分发或修改它
- * libmedia is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 3.1 of the License, or (at your option) any later version.
- *
- * libmedia 希望能够为您提供帮助，但不提供任何明示或暗示的担保，包括但不限于适销性或特定用途的保证
- * 您应自行承担使用 libmedia 的风险，并且需要遵守 GNU Lesser General Public License 中的条款和条件。
- * libmedia is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- */
-
-const MpegAudioV10SampleRateTable = [44100, 48000, 32000, 0];
-const MpegAudioV20SampleRateTable = [22050, 24000, 16000, 0];
-const MpegAudioV25SampleRateTable = [11025, 12000, 8000, 0];
-const MpegAudioV10FrameSizeTable = [0, 1152, 1152, 384];
-const MpegAudioV20FrameSizeTable = [0, 576, 1152, 384];
-const MpegAudioV25FrameSizeTable = [0, 576, 1152, 384];
-const MpegAudioV1L1BitRateTable = [0, 32, 64, 96, 128, 160, 192, 224, 256, 288, 320, 352, 384, 416, 448, -1];
-const MpegAudioV1L2BitRateTable = [0, 32, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 384, -1];
-const MpegAudioV1L3BitRateTable = [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, -1];
-const MpegAudioV2L1BitRateTable = [0, 32, 48, 56, 64, 80, 96, 112, 128, 144, 160, 176, 192, 224, 256, -1];
-const MpegAudioV2L2L3BitRateTable = [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160, -1];
-function getSampleRateByVersionIndex(version, samplingFreqIndex) {
-    switch (version) {
-        case 0:
-            // MPEG 2.5
-            return MpegAudioV25SampleRateTable[samplingFreqIndex];
-        case 2:
-            // MPEG 2
-            return MpegAudioV20SampleRateTable[samplingFreqIndex];
-        case 3:
-            // MPEG 1
-            return MpegAudioV10SampleRateTable[samplingFreqIndex];
-    }
-    return avutil_constant__WEBPACK_IMPORTED_MODULE_0__.NOPTS_VALUE;
-}
-function getFrameSizeByVersionLayer(version, layer) {
-    switch (version) {
-        case 0:
-            // MPEG 2.5
-            return MpegAudioV25FrameSizeTable[layer];
-        case 2:
-            // MPEG 2
-            return MpegAudioV20FrameSizeTable[layer];
-        case 3:
-            // MPEG 1
-            return MpegAudioV10FrameSizeTable[layer];
-    }
-    return avutil_constant__WEBPACK_IMPORTED_MODULE_0__.NOPTS_VALUE;
-}
-function getBitRateByVersionLayerIndex(version, layer, index) {
-    switch (layer) {
-        // layer3
-        case 1:
-            switch (version) {
-                case 0:
-                case 2:
-                    return MpegAudioV2L2L3BitRateTable[index];
-                case 3:
-                    return MpegAudioV1L3BitRateTable[index];
-            }
-            break;
-        // layer2
-        case 2:
-            switch (version) {
-                case 0:
-                case 2:
-                    return MpegAudioV2L2L3BitRateTable[index];
-                case 3:
-                    return MpegAudioV1L2BitRateTable[index];
-            }
-        // layer1
-        case 3:
-            switch (version) {
-                case 0:
-                case 2:
-                    return MpegAudioV2L1BitRateTable[index];
-                case 3:
-                    return MpegAudioV1L1BitRateTable[index];
-            }
-    }
-    return avutil_constant__WEBPACK_IMPORTED_MODULE_0__.NOPTS_VALUE;
-}
-function getProfileByLayer(layer) {
-    switch (layer) {
-        case 1:
-            // Layer 3
-            return 34;
-        case 2:
-            // Layer 2
-            return 33;
-        case 3:
-            // Layer 1
-            return 32;
-    }
-    return avutil_constant__WEBPACK_IMPORTED_MODULE_0__.NOPTS_VALUE;
-}
-const MP3Profile2Name = {
-    [32 /* MP3Profile.Layer1 */]: 'Layer1',
-    [33 /* MP3Profile.Layer2 */]: 'Layer2',
-    [34 /* MP3Profile.Layer3 */]: 'Layer3'
-};
-function parseAVCodecParameters(stream, buffer) {
-    if (buffer && buffer.length >= 4) {
-        const ver = (buffer[1] >>> 3) & 0x03;
-        const layer = (buffer[1] & 0x06) >> 1;
-        // const bitrateIndex = (buffer[2] & 0xF0) >>> 4
-        const samplingFreqIndex = (buffer[2] & 0x0C) >>> 2;
-        const channelMode = (buffer[3] >>> 6) & 0x03;
-        const channelCount = channelMode !== 3 ? 2 : 1;
-        const profile = getProfileByLayer(layer);
-        const sampleRate = getSampleRateByVersionIndex(ver, samplingFreqIndex);
-        stream.codecpar.profile = profile;
-        stream.codecpar.sampleRate = sampleRate;
-        stream.codecpar.chLayout.nbChannels = channelCount;
-    }
-}
-
-
-/***/ }),
-
-/***/ "./src/avformat/codecs/mpegvideo.ts":
-/*!******************************************!*\
-  !*** ./src/avformat/codecs/mpegvideo.ts ***!
-  \******************************************/
-/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
-
-/* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   isIDR: () => (/* binding */ isIDR)
-/* harmony export */ });
-/* harmony import */ var avutil_util_avpacket__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! avutil/util/avpacket */ "./src/avutil/util/avpacket.ts");
-/*
- * libmedia mpegvideo util
- *
- * 版权所有 (C) 2024 赵高兴
- * Copyright (C) 2024 Gaoxing Zhao
- *
- * 此文件是 libmedia 的一部分
- * This file is part of libmedia.
- *
- * libmedia 是自由软件；您可以根据 GNU Lesser General Public License（GNU LGPL）3.1
- * 或任何其更新的版本条款重新分发或修改它
- * libmedia is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 3.1 of the License, or (at your option) any later version.
- *
- * libmedia 希望能够为您提供帮助，但不提供任何明示或暗示的担保，包括但不限于适销性或特定用途的保证
- * 您应自行承担使用 libmedia 的风险，并且需要遵守 GNU Lesser General Public License 中的条款和条件。
- * libmedia is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- */
-
-function isIDR(avpacket) {
-    const data = (0,avutil_util_avpacket__WEBPACK_IMPORTED_MODULE_0__.getAVPacketData)(avpacket);
-    for (let i = 0; i < data.length - 6; i++) {
-        if (data[i] === 0
-            && data[i + 1] === 0
-            && data[i + 2] === 1
-            && data[i + 3] === 0) {
-            const picType = (data[i + 5] >> 3) & 7;
-            return picType === 1 /* MpegVideoPictureType.I */;
-        }
-    }
-    return false;
-}
-
-
-/***/ }),
-
-/***/ "./src/avformat/codecs/opus.ts":
-/*!*************************************!*\
-  !*** ./src/avformat/codecs/opus.ts ***!
-  \*************************************/
-/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
-
-/* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   avCodecParameters2Extradata: () => (/* binding */ avCodecParameters2Extradata),
-/* harmony export */   getBufferSamples: () => (/* binding */ getBufferSamples),
-/* harmony export */   parseAVCodecParameters: () => (/* binding */ parseAVCodecParameters)
-/* harmony export */ });
-/* unused harmony export durations */
-/* harmony import */ var common_io_BufferReader__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! common/io/BufferReader */ "./src/common/io/BufferReader.ts");
-/* harmony import */ var common_io_BufferWriter__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! common/io/BufferWriter */ "./src/common/io/BufferWriter.ts");
-/* harmony import */ var avutil_util_rational__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! avutil/util/rational */ "./src/avutil/util/rational.ts");
-/*
- * libmedia opus util
- *
- * 版权所有 (C) 2024 赵高兴
- * Copyright (C) 2024 Gaoxing Zhao
- *
- * 此文件是 libmedia 的一部分
- * This file is part of libmedia.
- *
- * libmedia 是自由软件；您可以根据 GNU Lesser General Public License（GNU LGPL）3.1
- * 或任何其更新的版本条款重新分发或修改它
- * libmedia is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 3.1 of the License, or (at your option) any later version.
- *
- * libmedia 希望能够为您提供帮助，但不提供任何明示或暗示的担保，包括但不限于适销性或特定用途的保证
- * 您应自行承担使用 libmedia 的风险，并且需要遵守 GNU Lesser General Public License 中的条款和条件。
- * libmedia is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- */
-
-
-
-const durations = [
-    /* Silk NB */
-    480, 960, 1920, 2880,
-    /* Silk MB */
-    480, 960, 1920, 2880,
-    /* Silk WB */
-    480, 960, 1920, 2880,
-    /* Hybrid SWB */
-    480, 960,
-    /* Hybrid FB */
-    480, 960,
-    /* CELT NB */
-    120, 240, 480, 960,
-    /* CELT NB */
-    120, 240, 480, 960,
-    /* CELT NB */
-    120, 240, 480, 960,
-    /* CELT NB */
-    120, 240, 480, 960
-];
-function getBufferSamples(buffer) {
-    let toc = 0, frameDuration = 0, nframes = 0;
-    if (buffer.length < 1) {
-        return 0;
-    }
-    toc = buffer[0];
-    frameDuration = durations[toc >> 3];
-    switch (toc & 3) {
-        case 0:
-            nframes = 1;
-            break;
-        case 1:
-            nframes = 2;
-            break;
-        case 2:
-            nframes = 2;
-            break;
-        case 3:
-            if (buffer.length < 2) {
-                return 0;
-            }
-            nframes = buffer[1] & 63;
-            break;
-    }
-    return nframes * frameDuration;
-}
-/**
- * opus extradata
- *
- * - 8 bytes Magic Signature: OpusHead
- * - 1 bytes unsigned, 对应值 0x01 version
- * - 1 bytes unsigned, channels 它可能和编码声道数不一致， 它可能被修改成 packet-by-packet, 对应值 0x01
- * - 2 bytes unsigned, preSkip 这是要从开始播放时的解码器输出， 从页面的颗粒位置减去以计算其 PCM 样本位置。
- * - 4 bytes unsigned, sampleRate 原始输入采样率
- * - 2 bytes signed, outputGain 这是解码时要应用的增益， 20 * log10 缩放解码器输出以实现所需的播放音量
- * - 1 bytes unsigned, channelMappingFamily 指示输出渠道的顺序和语音含义。该八位位组的每个当前指定的值表示一个映射系列，它定义了一组允许的通道数，以及每个允许的通道数的通道名称的有序集合
- * - channelMappingTable 可选， 当 Channel Mapping Family 为 0 时被省略。
- *  - 1 bytes, streamCount, unsigned ogg packet 里面编码了多少路 stream
- *  - 1 bytes, coupledStreamCount, unsigned 标识有多少路流是双声声道，必须小于 streamCount
- *  - C bytes, C 为总输出声道数 coupledStreamCount + streamCount
- *
- */
-function parseAVCodecParameters(stream, extradata) {
-    if (!extradata && stream.sideData[1 /* AVPacketSideDataType.AV_PKT_DATA_NEW_EXTRADATA */]) {
-        extradata = stream.sideData[1 /* AVPacketSideDataType.AV_PKT_DATA_NEW_EXTRADATA */];
-    }
-    if (extradata && extradata.length >= 19) {
-        const reader = new common_io_BufferReader__WEBPACK_IMPORTED_MODULE_0__["default"](extradata, false);
-        reader.skip(9);
-        stream.codecpar.chLayout.nbChannels = reader.readUint8();
-        stream.codecpar.initialPadding = reader.readUint16();
-        stream.codecpar.sampleRate = reader.readUint32();
-        stream.codecpar.seekPreroll = Number((0,avutil_util_rational__WEBPACK_IMPORTED_MODULE_2__.avRescaleQ)(BigInt(80), {
-            den: 1000,
-            num: 1
-        }, {
-            den: 48000,
-            num: 1
-        }));
-    }
-}
-function avCodecParameters2Extradata(codecpar) {
-    const extradata = new Uint8Array(19);
-    const writer = new common_io_BufferWriter__WEBPACK_IMPORTED_MODULE_1__["default"](extradata, false);
-    writer.writeString('OpusHead');
-    writer.writeUint8(0x01);
-    writer.writeUint8(codecpar.chLayout.nbChannels);
-    writer.writeUint16(codecpar.initialPadding);
-    writer.writeUint32(codecpar.sampleRate);
-    return extradata;
 }
 
 
@@ -1514,7 +631,7 @@ function avCodecParameters2Extradata(codecpar) {
 class IFormat {
     type = -1 /* AVFormat.UNKNOWN */;
     onStreamAdd;
-    destroy(formatContext) { }
+    async destroy(formatContext) { }
 }
 
 
@@ -1544,15 +661,15 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var avutil_util_rational__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! avutil/util/rational */ "./src/avutil/util/rational.ts");
 /* harmony import */ var common_util_array__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(/*! common/util/array */ "./src/common/util/array.ts");
 /* harmony import */ var common_util_object__WEBPACK_IMPORTED_MODULE_13__ = __webpack_require__(/*! common/util/object */ "./src/common/util/object.ts");
-/* harmony import */ var _codecs_mp3__WEBPACK_IMPORTED_MODULE_14__ = __webpack_require__(/*! ../codecs/mp3 */ "./src/avformat/codecs/mp3.ts");
-/* harmony import */ var _codecs_h264__WEBPACK_IMPORTED_MODULE_15__ = __webpack_require__(/*! ../codecs/h264 */ "./src/avformat/codecs/h264.ts");
-/* harmony import */ var _codecs_hevc__WEBPACK_IMPORTED_MODULE_16__ = __webpack_require__(/*! ../codecs/hevc */ "./src/avformat/codecs/hevc.ts");
-/* harmony import */ var _codecs_vvc__WEBPACK_IMPORTED_MODULE_17__ = __webpack_require__(/*! ../codecs/vvc */ "./src/avformat/codecs/vvc.ts");
-/* harmony import */ var _codecs_aac__WEBPACK_IMPORTED_MODULE_18__ = __webpack_require__(/*! ../codecs/aac */ "./src/avformat/codecs/aac.ts");
-/* harmony import */ var _codecs_opus__WEBPACK_IMPORTED_MODULE_19__ = __webpack_require__(/*! ../codecs/opus */ "./src/avformat/codecs/opus.ts");
-/* harmony import */ var _codecs_ac3__WEBPACK_IMPORTED_MODULE_20__ = __webpack_require__(/*! ../codecs/ac3 */ "./src/avformat/codecs/ac3.ts");
-/* harmony import */ var _codecs_dts__WEBPACK_IMPORTED_MODULE_21__ = __webpack_require__(/*! ../codecs/dts */ "./src/avformat/codecs/dts.ts");
-/* harmony import */ var _codecs_mpegvideo__WEBPACK_IMPORTED_MODULE_22__ = __webpack_require__(/*! ../codecs/mpegvideo */ "./src/avformat/codecs/mpegvideo.ts");
+/* harmony import */ var avutil_codecs_mp3__WEBPACK_IMPORTED_MODULE_14__ = __webpack_require__(/*! avutil/codecs/mp3 */ "./src/avutil/codecs/mp3.ts");
+/* harmony import */ var avutil_codecs_h264__WEBPACK_IMPORTED_MODULE_15__ = __webpack_require__(/*! avutil/codecs/h264 */ "./src/avutil/codecs/h264.ts");
+/* harmony import */ var avutil_codecs_hevc__WEBPACK_IMPORTED_MODULE_16__ = __webpack_require__(/*! avutil/codecs/hevc */ "./src/avutil/codecs/hevc.ts");
+/* harmony import */ var avutil_codecs_vvc__WEBPACK_IMPORTED_MODULE_17__ = __webpack_require__(/*! avutil/codecs/vvc */ "./src/avutil/codecs/vvc.ts");
+/* harmony import */ var avutil_codecs_aac__WEBPACK_IMPORTED_MODULE_18__ = __webpack_require__(/*! avutil/codecs/aac */ "./src/avutil/codecs/aac.ts");
+/* harmony import */ var avutil_codecs_opus__WEBPACK_IMPORTED_MODULE_19__ = __webpack_require__(/*! avutil/codecs/opus */ "./src/avutil/codecs/opus.ts");
+/* harmony import */ var avutil_codecs_ac3__WEBPACK_IMPORTED_MODULE_20__ = __webpack_require__(/*! avutil/codecs/ac3 */ "./src/avutil/codecs/ac3.ts");
+/* harmony import */ var avutil_codecs_dts__WEBPACK_IMPORTED_MODULE_21__ = __webpack_require__(/*! avutil/codecs/dts */ "./src/avutil/codecs/dts.ts");
+/* harmony import */ var avutil_codecs_mpegvideo__WEBPACK_IMPORTED_MODULE_22__ = __webpack_require__(/*! avutil/codecs/mpegvideo */ "./src/avutil/codecs/mpegvideo.ts");
 /* harmony import */ var avutil_util_mem__WEBPACK_IMPORTED_MODULE_23__ = __webpack_require__(/*! avutil/util/mem */ "./src/avutil/util/mem.ts");
 /* harmony import */ var cheap_std_memory__WEBPACK_IMPORTED_MODULE_24__ = __webpack_require__(/*! cheap/std/memory */ "./src/cheap/std/memory.ts");
 /* harmony import */ var _mpegts_mpegps__WEBPACK_IMPORTED_MODULE_25__ = __webpack_require__(/*! ./mpegts/mpegps */ "./src/avformat/formats/mpegts/mpegps.ts");
@@ -1564,7 +681,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _bsf_ac3_Ac32RawFilter__WEBPACK_IMPORTED_MODULE_31__ = __webpack_require__(/*! ../bsf/ac3/Ac32RawFilter */ "./src/avformat/bsf/ac3/Ac32RawFilter.ts");
 /* harmony import */ var _bsf_dts_Dts2RawFilter__WEBPACK_IMPORTED_MODULE_32__ = __webpack_require__(/*! ../bsf/dts/Dts2RawFilter */ "./src/avformat/bsf/dts/Dts2RawFilter.ts");
 /* harmony import */ var _bsf_aac_ADTS2RawFilter__WEBPACK_IMPORTED_MODULE_33__ = __webpack_require__(/*! ../bsf/aac/ADTS2RawFilter */ "./src/avformat/bsf/aac/ADTS2RawFilter.ts");
-var cheap__fileName__2 = "src\\avformat\\formats\\IMpegpsFormat.ts";
+const cheap__fileName__2 = "src\\avformat\\formats\\IMpegpsFormat.ts";
 
 
 
@@ -1624,8 +741,7 @@ class IMpegpsFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_7__["default"] {
         }
         this.cacheAVPacket = 0;
     }
-    destroy(formatContext) {
-        super.destroy(formatContext);
+    async destroy(formatContext) {
         if (this.cacheAVPacket) {
             (0,avutil_util_avpacket__WEBPACK_IMPORTED_MODULE_8__.destroyAVPacket)(this.cacheAVPacket);
             this.cacheAVPacket = 0;
@@ -1848,7 +964,12 @@ class IMpegpsFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_7__["default"] {
             stream.codecpar.chLayout.nbChannels = 1;
             stream.codecpar.sampleRate = 8000;
             stream.codecpar.chLayout.order = 1 /* AVChannelOrder.AV_CHANNEL_ORDER_NATIVE */;
-            stream.codecpar.chLayout.u.mask = BigInt(4 /* AV_CH_LAYOUT.AV_CH_LAYOUT_MONO */ >>> 0);
+            stream.codecpar.chLayout.u.mask = BigInt(4 /* AVChannelLayout.AV_CHANNEL_LAYOUT_MONO */);
+        }
+        if (stream.codecpar.codecId === 27 /* AVCodecID.AV_CODEC_ID_H264 */
+            || stream.codecpar.codecId === 173 /* AVCodecID.AV_CODEC_ID_HEVC */
+            || stream.codecpar.codecId === 196 /* AVCodecID.AV_CODEC_ID_VVC */) {
+            stream.codecpar.flags |= 1 /* AVCodecParameterFlags.AV_CODECPAR_FLAG_H26X_ANNEXB */;
         }
         if (stream.codecpar.codecId === 86017 /* AVCodecID.AV_CODEC_ID_MP3 */) {
             context.filter = new _bsf_mp3_Mp32RawFilter__WEBPACK_IMPORTED_MODULE_28__["default"]();
@@ -1879,12 +1000,12 @@ class IMpegpsFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_7__["default"] {
         }
         const signature = await formatContext.ioReader.peekUint32();
         if (signature !== 442 /* mpegps.MpegpsStartCode.PACK_START */) {
-            common_util_logger__WEBPACK_IMPORTED_MODULE_3__.error('the file format is not mpegps', cheap__fileName__2, 386);
+            common_util_logger__WEBPACK_IMPORTED_MODULE_3__.error('the file format is not mpegps', cheap__fileName__2, 389);
             return avutil_error__WEBPACK_IMPORTED_MODULE_4__.DATA_INVALID;
         }
         if (formatContext.ioReader.flags & 1 /* IOFlags.SEEKABLE */) {
             const now = formatContext.ioReader.getPos();
-            const MAX = BigInt(500) * BigInt(1000);
+            const MAX = BigInt(500000);
             const fileSize = await formatContext.ioReader.fileSize();
             let pos = fileSize - MAX;
             if (pos < now) {
@@ -1918,8 +1039,8 @@ class IMpegpsFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_7__["default"] {
             const samplingFreqIndex = (buffer[2] & 0x0C) >>> 2;
             const channelMode = (buffer[3] >>> 6) & 0x03;
             const channelCount = channelMode !== 3 ? 2 : 1;
-            const profile = _codecs_mp3__WEBPACK_IMPORTED_MODULE_14__.getProfileByLayer(layer);
-            const sampleRate = _codecs_mp3__WEBPACK_IMPORTED_MODULE_14__.getSampleRateByVersionIndex(ver, samplingFreqIndex);
+            const profile = avutil_codecs_mp3__WEBPACK_IMPORTED_MODULE_14__.getProfileByLayer(layer);
+            const sampleRate = avutil_codecs_mp3__WEBPACK_IMPORTED_MODULE_14__.getSampleRateByVersionIndex(ver, samplingFreqIndex);
             stream.codecpar.profile = profile;
             stream.codecpar.sampleRate = sampleRate;
             stream.codecpar.chLayout.nbChannels = channelCount;
@@ -1927,7 +1048,7 @@ class IMpegpsFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_7__["default"] {
         else if (stream.codecpar.codecId === 86019 /* AVCodecID.AV_CODEC_ID_AC3 */
             && stream.codecpar.sampleRate === avutil_constant__WEBPACK_IMPORTED_MODULE_9__.NOPTS_VALUE) {
             const buffer = (0,avutil_util_avpacket__WEBPACK_IMPORTED_MODULE_8__.getAVPacketData)(avpacket);
-            const info = _codecs_ac3__WEBPACK_IMPORTED_MODULE_20__.parseHeader(buffer);
+            const info = avutil_codecs_ac3__WEBPACK_IMPORTED_MODULE_20__.parseHeader(buffer);
             if (!common_util_is__WEBPACK_IMPORTED_MODULE_30__.number(info)) {
                 stream.codecpar.sampleRate = info.sampleRate;
                 stream.codecpar.chLayout.nbChannels = info.channels;
@@ -1937,7 +1058,7 @@ class IMpegpsFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_7__["default"] {
         else if (stream.codecpar.codecId === 86020 /* AVCodecID.AV_CODEC_ID_DTS */
             && stream.codecpar.sampleRate === avutil_constant__WEBPACK_IMPORTED_MODULE_9__.NOPTS_VALUE) {
             const buffer = (0,avutil_util_avpacket__WEBPACK_IMPORTED_MODULE_8__.getAVPacketData)(avpacket);
-            const info = _codecs_dts__WEBPACK_IMPORTED_MODULE_21__.parseHeader(buffer);
+            const info = avutil_codecs_dts__WEBPACK_IMPORTED_MODULE_21__.parseHeader(buffer);
             if (!common_util_is__WEBPACK_IMPORTED_MODULE_30__.number(info)) {
                 stream.codecpar.sampleRate = info.sampleRate;
                 stream.codecpar.chLayout.nbChannels = info.channels;
@@ -1947,24 +1068,15 @@ class IMpegpsFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_7__["default"] {
         else if (!stream.codecpar.extradata) {
             let element = (0,avutil_util_avpacket__WEBPACK_IMPORTED_MODULE_8__.getAVPacketSideData)(avpacket, 1 /* AVPacketSideDataType.AV_PKT_DATA_NEW_EXTRADATA */);
             if (element) {
-                stream.codecpar.extradata = (0,avutil_util_mem__WEBPACK_IMPORTED_MODULE_23__.avMalloc)(cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumRead[15](element + 4));
-                (0,cheap_std_memory__WEBPACK_IMPORTED_MODULE_24__.memcpy)(stream.codecpar.extradata, cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumRead[20](element), cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumRead[15](element + 4));
-                stream.codecpar.extradataSize = cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumRead[15](element + 4);
+                stream.codecpar.extradata = (0,avutil_util_mem__WEBPACK_IMPORTED_MODULE_23__.avMalloc)(cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumRead[25](element + 4));
+                (0,cheap_std_memory__WEBPACK_IMPORTED_MODULE_24__.memcpy)(stream.codecpar.extradata, cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumRead[20](element), cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumRead[25](element + 4));
+                stream.codecpar.extradataSize = (cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumRead[25](element + 4) >> 0);
                 (0,avutil_util_avpacket__WEBPACK_IMPORTED_MODULE_8__.deleteAVPacketSideData)(avpacket, 1 /* AVPacketSideDataType.AV_PKT_DATA_NEW_EXTRADATA */);
-                if (stream.codecpar.codecId === 27 /* AVCodecID.AV_CODEC_ID_H264 */) {
-                    _codecs_h264__WEBPACK_IMPORTED_MODULE_15__.parseAVCodecParameters(stream, (0,cheap_std_memory__WEBPACK_IMPORTED_MODULE_24__.mapSafeUint8Array)(stream.codecpar.extradata, stream.codecpar.extradataSize));
-                }
-                else if (stream.codecpar.codecId === 173 /* AVCodecID.AV_CODEC_ID_HEVC */) {
-                    _codecs_hevc__WEBPACK_IMPORTED_MODULE_16__.parseAVCodecParameters(stream, (0,cheap_std_memory__WEBPACK_IMPORTED_MODULE_24__.mapSafeUint8Array)(stream.codecpar.extradata, stream.codecpar.extradataSize));
-                }
-                else if (stream.codecpar.codecId === 196 /* AVCodecID.AV_CODEC_ID_VVC */) {
-                    _codecs_vvc__WEBPACK_IMPORTED_MODULE_17__.parseAVCodecParameters(stream, (0,cheap_std_memory__WEBPACK_IMPORTED_MODULE_24__.mapSafeUint8Array)(stream.codecpar.extradata, stream.codecpar.extradataSize));
-                }
-                else if (stream.codecpar.codecId === 86018 /* AVCodecID.AV_CODEC_ID_AAC */) {
-                    _codecs_aac__WEBPACK_IMPORTED_MODULE_18__.parseAVCodecParameters(stream, (0,cheap_std_memory__WEBPACK_IMPORTED_MODULE_24__.mapSafeUint8Array)(stream.codecpar.extradata, stream.codecpar.extradataSize));
+                if (stream.codecpar.codecId === 86018 /* AVCodecID.AV_CODEC_ID_AAC */) {
+                    avutil_codecs_aac__WEBPACK_IMPORTED_MODULE_18__.parseAVCodecParameters(stream, (0,cheap_std_memory__WEBPACK_IMPORTED_MODULE_24__.mapSafeUint8Array)(stream.codecpar.extradata, stream.codecpar.extradataSize));
                 }
                 else if (stream.codecpar.codecId === 86076 /* AVCodecID.AV_CODEC_ID_OPUS */) {
-                    _codecs_opus__WEBPACK_IMPORTED_MODULE_19__.parseAVCodecParameters(stream, (0,cheap_std_memory__WEBPACK_IMPORTED_MODULE_24__.mapSafeUint8Array)(stream.codecpar.extradata, stream.codecpar.extradataSize));
+                    avutil_codecs_opus__WEBPACK_IMPORTED_MODULE_19__.parseAVCodecParameters(stream, (0,cheap_std_memory__WEBPACK_IMPORTED_MODULE_24__.mapSafeUint8Array)(stream.codecpar.extradata, stream.codecpar.extradataSize));
                 }
             }
         }
@@ -1979,7 +1091,7 @@ class IMpegpsFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_7__["default"] {
         if (codecId === 27 /* AVCodecID.AV_CODEC_ID_H264 */
             || codecId === 173 /* AVCodecID.AV_CODEC_ID_H265 */
             || codecId === 196 /* AVCodecID.AV_CODEC_ID_VVC */) {
-            cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_2__.CTypeEnumWrite[15](avpacket + 80, 2 /* h264.BitFormat.ANNEXB */);
+            cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_2__.CTypeEnumWrite[15](avpacket + 36, cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumRead[15](avpacket + 36) | 64 /* AVPacketFlags.AV_PKT_FLAG_H26X_ANNEXB */);
         }
         cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_2__.CTypeEnumWrite[15](avpacket + 32, stream.index);
         cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_2__.CTypeEnumWrite[17](avpacket + 16, slice.dts);
@@ -2000,7 +1112,7 @@ class IMpegpsFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_7__["default"] {
             let ret = 0;
             ret = streamContext.filter.sendAVPacket(avpacket);
             if (ret < 0) {
-                common_util_logger__WEBPACK_IMPORTED_MODULE_3__.error('send avpacket to bsf failed', cheap__fileName__2, 534);
+                common_util_logger__WEBPACK_IMPORTED_MODULE_3__.error('send avpacket to bsf failed', cheap__fileName__2, 528);
                 return avutil_error__WEBPACK_IMPORTED_MODULE_4__.DATA_INVALID;
             }
             ret = streamContext.filter.receiveAVPacket(avpacket);
@@ -2030,37 +1142,49 @@ class IMpegpsFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_7__["default"] {
         }
         else {
             if (stream.codecpar.codecId === 2 /* AVCodecID.AV_CODEC_ID_MPEG2VIDEO */) {
-                if (_codecs_mpegvideo__WEBPACK_IMPORTED_MODULE_22__.isIDR(avpacket)) {
+                if (avutil_codecs_mpegvideo__WEBPACK_IMPORTED_MODULE_22__.isIDR(avpacket)) {
                     cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_2__.CTypeEnumWrite[15](avpacket + 36, cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumRead[15](avpacket + 36) | 1 /* AVPacketFlags.AV_PKT_FLAG_KEY */);
                 }
             }
             else if (stream.codecpar.codecId === 27 /* AVCodecID.AV_CODEC_ID_H264 */) {
                 if (!stream.codecpar.extradata) {
-                    _codecs_h264__WEBPACK_IMPORTED_MODULE_15__.parseAnnexbExtraData(avpacket, true);
-                    this.checkExtradata(avpacket, stream);
-                    stream.codecpar.bitFormat = 2 /* h264.BitFormat.ANNEXB */;
+                    const extradata = avutil_codecs_h264__WEBPACK_IMPORTED_MODULE_15__.generateAnnexbExtradata((0,avutil_util_avpacket__WEBPACK_IMPORTED_MODULE_8__.getAVPacketData)(avpacket));
+                    if (extradata) {
+                        stream.codecpar.extradata = (0,avutil_util_mem__WEBPACK_IMPORTED_MODULE_23__.avMalloc)(extradata.length);
+                        (0,cheap_std_memory__WEBPACK_IMPORTED_MODULE_24__.memcpyFromUint8Array)(stream.codecpar.extradata, extradata.length, extradata);
+                        stream.codecpar.extradataSize = extradata.length;
+                        avutil_codecs_h264__WEBPACK_IMPORTED_MODULE_15__.parseAVCodecParameters(stream, extradata);
+                    }
                 }
-                if (_codecs_h264__WEBPACK_IMPORTED_MODULE_15__.isIDR(avpacket)) {
+                if (avutil_codecs_h264__WEBPACK_IMPORTED_MODULE_15__.isIDR(avpacket)) {
                     cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_2__.CTypeEnumWrite[15](avpacket + 36, cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumRead[15](avpacket + 36) | 1 /* AVPacketFlags.AV_PKT_FLAG_KEY */);
                 }
             }
             else if (stream.codecpar.codecId === 173 /* AVCodecID.AV_CODEC_ID_HEVC */) {
                 if (!stream.codecpar.extradata) {
-                    _codecs_hevc__WEBPACK_IMPORTED_MODULE_16__.parseAnnexbExtraData(avpacket, true);
-                    this.checkExtradata(avpacket, stream);
-                    stream.codecpar.bitFormat = 2 /* h264.BitFormat.ANNEXB */;
+                    const extradata = avutil_codecs_hevc__WEBPACK_IMPORTED_MODULE_16__.generateAnnexbExtradata((0,avutil_util_avpacket__WEBPACK_IMPORTED_MODULE_8__.getAVPacketData)(avpacket));
+                    if (extradata) {
+                        stream.codecpar.extradata = (0,avutil_util_mem__WEBPACK_IMPORTED_MODULE_23__.avMalloc)(extradata.length);
+                        (0,cheap_std_memory__WEBPACK_IMPORTED_MODULE_24__.memcpyFromUint8Array)(stream.codecpar.extradata, extradata.length, extradata);
+                        stream.codecpar.extradataSize = extradata.length;
+                        avutil_codecs_hevc__WEBPACK_IMPORTED_MODULE_16__.parseAVCodecParameters(stream, extradata);
+                    }
                 }
-                if (_codecs_hevc__WEBPACK_IMPORTED_MODULE_16__.isIDR(avpacket)) {
+                if (avutil_codecs_hevc__WEBPACK_IMPORTED_MODULE_16__.isIDR(avpacket)) {
                     cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_2__.CTypeEnumWrite[15](avpacket + 36, cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumRead[15](avpacket + 36) | 1 /* AVPacketFlags.AV_PKT_FLAG_KEY */);
                 }
             }
             else if (stream.codecpar.codecId === 196 /* AVCodecID.AV_CODEC_ID_VVC */) {
                 if (!stream.codecpar.extradata) {
-                    _codecs_vvc__WEBPACK_IMPORTED_MODULE_17__.parseAnnexbExtraData(avpacket, true);
-                    this.checkExtradata(avpacket, stream);
-                    stream.codecpar.bitFormat = 2 /* h264.BitFormat.ANNEXB */;
+                    const extradata = avutil_codecs_vvc__WEBPACK_IMPORTED_MODULE_17__.generateAnnexbExtradata((0,avutil_util_avpacket__WEBPACK_IMPORTED_MODULE_8__.getAVPacketData)(avpacket));
+                    if (extradata) {
+                        stream.codecpar.extradata = (0,avutil_util_mem__WEBPACK_IMPORTED_MODULE_23__.avMalloc)(extradata.length);
+                        (0,cheap_std_memory__WEBPACK_IMPORTED_MODULE_24__.memcpyFromUint8Array)(stream.codecpar.extradata, extradata.length, extradata);
+                        stream.codecpar.extradataSize = extradata.length;
+                        avutil_codecs_vvc__WEBPACK_IMPORTED_MODULE_17__.parseAVCodecParameters(stream, extradata);
+                    }
                 }
-                if (_codecs_vvc__WEBPACK_IMPORTED_MODULE_17__.isIDR(avpacket)) {
+                if (avutil_codecs_vvc__WEBPACK_IMPORTED_MODULE_17__.isIDR(avpacket)) {
                     cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_2__.CTypeEnumWrite[15](avpacket + 36, cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumRead[15](avpacket + 36) | 1 /* AVPacketFlags.AV_PKT_FLAG_KEY */);
                 }
             }
@@ -2125,7 +1249,7 @@ class IMpegpsFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_7__["default"] {
                                 | payload[i + offset + 3]);
                             const ver = (payload[i + offset + 1] >>> 3) & 0x03;
                             const samplingFreqIndex = (payload[i + offset + 2] & 0x0C) >>> 2;
-                            const sampleRate = _codecs_mp3__WEBPACK_IMPORTED_MODULE_14__.getSampleRateByVersionIndex(ver, samplingFreqIndex);
+                            const sampleRate = avutil_codecs_mp3__WEBPACK_IMPORTED_MODULE_14__.getSampleRateByVersionIndex(ver, samplingFreqIndex);
                             let frameLength = _mp3_frameHeader__WEBPACK_IMPORTED_MODULE_29__.getFrameLength(header, sampleRate);
                             if (frameLength
                                 && (i + offset + frameLength < payload.length - 2)
@@ -2155,7 +1279,7 @@ class IMpegpsFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_7__["default"] {
                         let count = 0;
                         let offset = 0;
                         while (true) {
-                            const info = _codecs_ac3__WEBPACK_IMPORTED_MODULE_20__.parseHeader(payload.subarray(i + offset));
+                            const info = avutil_codecs_ac3__WEBPACK_IMPORTED_MODULE_20__.parseHeader(payload.subarray(i + offset));
                             if (!common_util_is__WEBPACK_IMPORTED_MODULE_30__.number(info)
                                 && (i + offset + info.frameSize < payload.length - 2)
                                 && payload[i + offset + info.frameSize] === 0x0b
@@ -2187,7 +1311,7 @@ class IMpegpsFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_7__["default"] {
                         let count = 0;
                         let offset = 0;
                         while (true) {
-                            const info = _codecs_dts__WEBPACK_IMPORTED_MODULE_21__.parseHeader(payload.subarray(i + offset));
+                            const info = avutil_codecs_dts__WEBPACK_IMPORTED_MODULE_21__.parseHeader(payload.subarray(i + offset));
                             if (!common_util_is__WEBPACK_IMPORTED_MODULE_30__.number(info)
                                 && (i + offset + info.frameSize < payload.length - 4)
                                 && payload[i + offset + info.frameSize] === 0x7f
@@ -2443,8 +1567,9 @@ class IMpegpsFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_7__["default"] {
             return await this.readAVPacket_(formatContext, avpacket);
         }
         catch (error) {
-            if (formatContext.ioReader.error !== -1048576 /* IOError.END */) {
-                common_util_logger__WEBPACK_IMPORTED_MODULE_3__.error(`read packet error, ${error}`, cheap__fileName__2, 1026);
+            if (formatContext.ioReader.error !== -1048576 /* IOError.END */
+                && formatContext.ioReader.error !== -1048572 /* IOError.ABORT */) {
+                common_util_logger__WEBPACK_IMPORTED_MODULE_3__.error(`read packet error, ${error}`, cheap__fileName__2, 1033);
                 return avutil_error__WEBPACK_IMPORTED_MODULE_4__.DATA_INVALID;
             }
             else {
@@ -2512,13 +1637,13 @@ class IMpegpsFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_7__["default"] {
                     return 1;
                 });
                 if (index > 0 && (0,avutil_util_rational__WEBPACK_IMPORTED_MODULE_11__.avRescaleQ)(timestamp - stream.sampleIndexes[index - 1].pts, stream.timeBase, avutil_constant__WEBPACK_IMPORTED_MODULE_9__.AV_MILLI_TIME_BASE_Q) < BigInt(10000)) {
-                    common_util_logger__WEBPACK_IMPORTED_MODULE_3__.debug(`seek in sampleIndexes, found index: ${index}, pts: ${stream.sampleIndexes[index - 1].pts}, pos: ${stream.sampleIndexes[index - 1].pos}`, cheap__fileName__2, 1111);
+                    common_util_logger__WEBPACK_IMPORTED_MODULE_3__.debug(`seek in sampleIndexes, found index: ${index}, pts: ${stream.sampleIndexes[index - 1].pts}, pos: ${stream.sampleIndexes[index - 1].pos}`, cheap__fileName__2, 1117);
                     await formatContext.ioReader.seek(stream.sampleIndexes[index - 1].pos);
                     this.context.ioEnded = false;
                     return now;
                 }
             }
-            common_util_logger__WEBPACK_IMPORTED_MODULE_3__.debug('not found any keyframe index, try to seek in bytes', cheap__fileName__2, 1118);
+            common_util_logger__WEBPACK_IMPORTED_MODULE_3__.debug('not found any keyframe index, try to seek in bytes', cheap__fileName__2, 1124);
             let ret = await (0,_function_seekInBytes__WEBPACK_IMPORTED_MODULE_10__["default"])(formatContext, stream, timestamp, BigInt(0), this.readAVPacket.bind(this), this.syncPSPacket.bind(this));
             if (ret >= 0) {
                 this.context.ioEnded = false;
@@ -2545,7 +1670,7 @@ class IMpegpsFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_7__["default"] {
 /* harmony export */   getFrameLength: () => (/* binding */ getFrameLength),
 /* harmony export */   parse: () => (/* binding */ parse)
 /* harmony export */ });
-/* harmony import */ var _codecs_mp3__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../../codecs/mp3 */ "./src/avformat/codecs/mp3.ts");
+/* harmony import */ var avutil_codecs_mp3__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! avutil/codecs/mp3 */ "./src/avutil/codecs/mp3.ts");
 /*
  * libmedia mp3 FrameHeader utils
  *
@@ -2599,7 +1724,7 @@ function parse(header, value) {
     header.emphasis = value & 3;
 }
 function getFrameLength(header, sampleRate) {
-    let frameSize = _codecs_mp3__WEBPACK_IMPORTED_MODULE_0__.getBitRateByVersionLayerIndex(header.version, header.layer, header.bitrateIndex);
+    let frameSize = avutil_codecs_mp3__WEBPACK_IMPORTED_MODULE_0__.getBitRateByVersionLayerIndex(header.version, header.layer, header.bitrateIndex);
     switch (header.layer) {
         case 1:
         default:
@@ -2636,7 +1761,7 @@ function getFrameLength(header, sampleRate) {
 /* harmony import */ var avutil_constant__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! avutil/constant */ "./src/avutil/constant.ts");
 /* harmony import */ var common_util_logger__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! common/util/logger */ "./src/common/util/logger.ts");
 /* harmony import */ var avutil_error__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! avutil/error */ "./src/avutil/error.ts");
-var cheap__fileName__0 = "src\\avformat\\formats\\mpegts\\function\\parsePES.ts";
+const cheap__fileName__0 = "src\\avformat\\formats\\mpegts\\function\\parsePES.ts";
 
 
 
@@ -2659,7 +1784,7 @@ function parsePES(pes) {
         let dts = avutil_constant__WEBPACK_IMPORTED_MODULE_0__.NOPTS_VALUE_BIGINT;
         while (true) {
             if (6 + offset >= data.length) {
-                return;
+                return avutil_error__WEBPACK_IMPORTED_MODULE_2__.DATA_INVALID;
             }
             flags = data[6 + offset];
             if (flags !== 0xff) {
@@ -2716,7 +1841,7 @@ function parsePES(pes) {
             headerSize = 1;
         }
         else {
-            common_util_logger__WEBPACK_IMPORTED_MODULE_1__.error('invalid data', cheap__fileName__0, 121);
+            common_util_logger__WEBPACK_IMPORTED_MODULE_1__.error('invalid data', cheap__fileName__0, 122);
             return avutil_error__WEBPACK_IMPORTED_MODULE_2__.DATA_INVALID;
         }
         pes.dts = dts;
@@ -2725,10 +1850,14 @@ function parsePES(pes) {
         let payloadLength = 0;
         if (pesPacketLength !== 0) {
             if (pesPacketLength < offset + headerSize) {
-                common_util_logger__WEBPACK_IMPORTED_MODULE_1__.error('Malformed PES: PES_packet_length < 3 + PES_header_data_length', cheap__fileName__0, 133);
-                return;
+                common_util_logger__WEBPACK_IMPORTED_MODULE_1__.error('Malformed PES: PES_packet_length < 3 + PES_header_data_length', cheap__fileName__0, 134);
+                return avutil_error__WEBPACK_IMPORTED_MODULE_2__.DATA_INVALID;
             }
             payloadLength = pesPacketLength - (offset + headerSize);
+            if (payloadStartIndex + (data.byteLength - payloadStartIndex) != pesPacketLength + 6) {
+                common_util_logger__WEBPACK_IMPORTED_MODULE_1__.warn('PES packet size mismatch', cheap__fileName__0, 139);
+                pes.flags |= 2 /* AVPacketFlags.AV_PKT_FLAG_CORRUPT */;
+            }
         }
         else {
             // PES_packet_length === 0
@@ -2904,6 +2033,7 @@ class PES {
     payload = null;
     data = null;
     randomAccessIndicator = 0;
+    flags;
 }
 
 
@@ -2969,7 +2099,7 @@ function getBytesByDuration(streams, duration, timeBase) {
 /* harmony export */   "default": () => (/* binding */ seekInBytes)
 /* harmony export */ });
 /* harmony import */ var cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! cheap/ctypeEnumRead */ "./src/cheap/ctypeEnumRead.ts");
-/* harmony import */ var _avutil_struct_rational_ts__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./..\..\avutil\struct\rational.ts */ "./src/avutil/struct/rational.ts");
+/* harmony import */ var _avutil_struct_rational__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./..\..\avutil\struct\rational */ "./src/avutil/struct/rational.ts");
 /* harmony import */ var cheap_std_structAccess__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! cheap/std/structAccess */ "./src/cheap/std/structAccess.ts");
 /* harmony import */ var avutil_constant__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! avutil/constant */ "./src/avutil/constant.ts");
 /* harmony import */ var avutil_util_rational__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! avutil/util/rational */ "./src/avutil/util/rational.ts");
@@ -2977,7 +2107,7 @@ function getBytesByDuration(streams, duration, timeBase) {
 /* harmony import */ var avutil_util_avpacket__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! avutil/util/avpacket */ "./src/avutil/util/avpacket.ts");
 /* harmony import */ var avutil_error__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! avutil/error */ "./src/avutil/error.ts");
 /* harmony import */ var common_util_logger__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! common/util/logger */ "./src/common/util/logger.ts");
-var cheap__fileName__0 = "src\\avformat\\function\\seekInBytes.ts";
+const cheap__fileName__0 = "src\\avformat\\function\\seekInBytes.ts";
 
 
 
@@ -2987,7 +2117,6 @@ var cheap__fileName__0 = "src\\avformat\\function\\seekInBytes.ts";
 
 
 
-// @ts-ignore
 async function seekInBytes(context, stream, timestamp, firstPacketPos, readAVPacket, syncAVPacket) {
     const now = context.ioReader.getPos();
     const fileSize = await context.ioReader.fileSize();
@@ -3002,7 +2131,7 @@ async function seekInBytes(context, stream, timestamp, firstPacketPos, readAVPac
     const pointPts = (0,avutil_util_rational__WEBPACK_IMPORTED_MODULE_4__.avRescaleQ)(timestamp, stream.timeBase, avutil_constant__WEBPACK_IMPORTED_MODULE_3__.AV_MILLI_TIME_BASE_Q);
     // 头十秒直接回到开始位置
     if (pointPts < BigInt(10000)) {
-        common_util_logger__WEBPACK_IMPORTED_MODULE_8__.debug(`seek pts is earlier then 10s, seek to first packet pos(${firstPacketPos}) directly`, cheap__fileName__0, 63);
+        common_util_logger__WEBPACK_IMPORTED_MODULE_8__.debug(`seek pts is earlier then 10s, seek to first packet pos(${firstPacketPos}) directly`, cheap__fileName__0, 62);
         await context.ioReader.seek(firstPacketPos);
         return now;
     }
@@ -3027,12 +2156,15 @@ async function seekInBytes(context, stream, timestamp, firstPacketPos, readAVPac
         }
         await context.ioReader.seek(bytes);
         await syncAVPacket(context);
+        if (context.ioReader.flags & 8 /* IOFlags.ABORT */) {
+            break;
+        }
         const now = context.ioReader.getPos();
         let ret = await readAVPacket(context, avpacket);
         if (ret >= 0) {
-            const currentPts = (0,avutil_util_rational__WEBPACK_IMPORTED_MODULE_4__.avRescaleQ)(cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[17](avpacket + 8), (0,cheap_std_structAccess__WEBPACK_IMPORTED_MODULE_2__["default"])(avpacket + 72, _avutil_struct_rational_ts__WEBPACK_IMPORTED_MODULE_1__.Rational), avutil_constant__WEBPACK_IMPORTED_MODULE_3__.AV_MILLI_TIME_BASE_Q);
+            const currentPts = (0,avutil_util_rational__WEBPACK_IMPORTED_MODULE_4__.avRescaleQ2)(cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[17](avpacket + 8), avpacket + 72, avutil_constant__WEBPACK_IMPORTED_MODULE_3__.AV_MILLI_TIME_BASE_Q);
             const diff = currentPts - pointPts;
-            common_util_logger__WEBPACK_IMPORTED_MODULE_8__.debug(`try to seek to pos: ${bytes}, got packet pts: ${cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[17](avpacket + 8)}(${currentPts}ms), diff: ${diff}ms`, cheap__fileName__0, 98);
+            common_util_logger__WEBPACK_IMPORTED_MODULE_8__.debug(`try to seek to pos: ${bytes}, got packet pts: ${cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[17](avpacket + 8)}(${currentPts}ms), diff: ${diff}ms`, cheap__fileName__0, 100);
             // seek 时间戳的前面 10 秒内
             if (diff <= BigInt(0) && -diff < BigInt(10000)) {
                 pos = now;
@@ -3054,18 +2186,987 @@ async function seekInBytes(context, stream, timestamp, firstPacketPos, readAVPac
             pos = avutil_constant__WEBPACK_IMPORTED_MODULE_3__.NOPTS_VALUE_BIGINT;
             break;
         }
+        if (context.ioReader.flags & 8 /* IOFlags.ABORT */) {
+            break;
+        }
     }
     (0,avutil_util_avpacket__WEBPACK_IMPORTED_MODULE_6__.destroyAVPacket)(avpacket);
     if (pos !== avutil_constant__WEBPACK_IMPORTED_MODULE_3__.NOPTS_VALUE_BIGINT) {
-        common_util_logger__WEBPACK_IMPORTED_MODULE_8__.debug(`finally seek to pos ${pos}`, cheap__fileName__0, 126);
+        common_util_logger__WEBPACK_IMPORTED_MODULE_8__.debug(`finally seek to pos ${pos}`, cheap__fileName__0, 131);
         await context.ioReader.seek(pos);
         await syncAVPacket(context);
         return now;
     }
     else {
         await context.ioReader.seek(now);
+        if (context.ioReader.flags & 8 /* IOFlags.ABORT */) {
+            return BigInt(avutil_error__WEBPACK_IMPORTED_MODULE_7__.EOF);
+        }
     }
     return BigInt(avutil_error__WEBPACK_IMPORTED_MODULE_7__.FORMAT_NOT_SUPPORT);
+}
+
+
+/***/ }),
+
+/***/ "./src/avutil/codecs/aac.ts":
+/*!**********************************!*\
+  !*** ./src/avutil/codecs/aac.ts ***!
+  \**********************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   AACProfile2Name: () => (/* binding */ AACProfile2Name),
+/* harmony export */   avCodecParameters2Extradata: () => (/* binding */ avCodecParameters2Extradata),
+/* harmony export */   parseADTSHeader: () => (/* binding */ parseADTSHeader),
+/* harmony export */   parseAVCodecParameters: () => (/* binding */ parseAVCodecParameters),
+/* harmony export */   parseLATMHeader: () => (/* binding */ parseLATMHeader)
+/* harmony export */ });
+/* unused harmony exports MPEG4SamplingFrequencyIndex, MPEG4SamplingFrequencies, MPEG4Channels, getAVCodecParameters */
+/* harmony import */ var _constant__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../constant */ "./src/avutil/constant.ts");
+/* harmony import */ var common_io_BitReader__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! common/io/BitReader */ "./src/common/io/BitReader.ts");
+/*
+ * libmedia aac util
+ *
+ * 版权所有 (C) 2024 赵高兴
+ * Copyright (C) 2024 Gaoxing Zhao
+ *
+ * 此文件是 libmedia 的一部分
+ * This file is part of libmedia.
+ *
+ * libmedia 是自由软件；您可以根据 GNU Lesser General Public License（GNU LGPL）3.1
+ * 或任何其更新的版本条款重新分发或修改它
+ * libmedia is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3.1 of the License, or (at your option) any later version.
+ *
+ * libmedia 希望能够为您提供帮助，但不提供任何明示或暗示的担保，包括但不限于适销性或特定用途的保证
+ * 您应自行承担使用 libmedia 的风险，并且需要遵守 GNU Lesser General Public License 中的条款和条件。
+ * libmedia is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ */
+
+
+const AACProfile2Name = {
+    [1 /* MPEG4AudioObjectTypes.AAC_MAIN */]: 'Main',
+    [2 /* MPEG4AudioObjectTypes.AAC_LC */]: 'LC',
+    [3 /* MPEG4AudioObjectTypes.AAC_SSR */]: 'SSR',
+    [4 /* MPEG4AudioObjectTypes.AAC_LTP */]: 'LTP',
+    [5 /* MPEG4AudioObjectTypes.AAC_SBR */]: 'HE',
+    [6 /* MPEG4AudioObjectTypes.AAC_SCALABLE */]: 'SCALABLE',
+    [29 /* MPEG4AudioObjectTypes.AAC_PS */]: 'HEv2',
+    [23 /* MPEG4AudioObjectTypes.AAC_LD */]: 'LD',
+    [39 /* MPEG4AudioObjectTypes.AAC_ELD */]: 'ELD'
+};
+const MPEG4SamplingFrequencyIndex = {
+    96000: 0,
+    88200: 1,
+    64000: 2,
+    48000: 3,
+    44100: 4,
+    32000: 5,
+    24000: 6,
+    22050: 7,
+    16000: 8,
+    12000: 9,
+    11025: 10,
+    8000: 11,
+    7350: 12
+};
+const MPEG4SamplingFrequencies = [
+    96000,
+    88200,
+    64000,
+    48000,
+    44100,
+    32000,
+    24000,
+    22050,
+    16000,
+    12000,
+    11025,
+    8000,
+    7350,
+    _constant__WEBPACK_IMPORTED_MODULE_0__.NOPTS_VALUE,
+    _constant__WEBPACK_IMPORTED_MODULE_0__.NOPTS_VALUE,
+    _constant__WEBPACK_IMPORTED_MODULE_0__.NOPTS_VALUE
+];
+const MPEG4Channels = [
+    _constant__WEBPACK_IMPORTED_MODULE_0__.NOPTS_VALUE,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+];
+/**
+ * 解析 AAC AudioSpecificConfig
+ *
+ *             frequency
+ *              44100Hz        fill bit
+ *               4 bit          3 bit
+ *              -------         -----
+ *    0 0 0 1 0 0 1 0 0 0 0 1 0 0 0 0
+ *    ---------         -------
+ *      5 bit            4 bit
+ *     AAC LC           fl, fr
+ *    profile           channel
+ *
+ * url: https://wiki.multimedia.cx/index.php/MPEG-4_Audio#Audio_Specific_Config
+ *
+ */
+function getAVCodecParameters(extradata) {
+    let profile = _constant__WEBPACK_IMPORTED_MODULE_0__.NOPTS_VALUE;
+    let sampleRate = _constant__WEBPACK_IMPORTED_MODULE_0__.NOPTS_VALUE;
+    let channels = _constant__WEBPACK_IMPORTED_MODULE_0__.NOPTS_VALUE;
+    if (extradata.length >= 2) {
+        profile = (extradata[0] >> 3) & 0x1f;
+        sampleRate = MPEG4SamplingFrequencies[((extradata[0] & 0x07) << 1)
+            | (extradata[1] >> 7)];
+        channels = MPEG4Channels[(extradata[1] >> 3) & 0x0f];
+    }
+    return {
+        profile,
+        sampleRate,
+        channels
+    };
+}
+function parseAVCodecParameters(stream, extradata) {
+    if (!extradata && stream.sideData[1 /* AVPacketSideDataType.AV_PKT_DATA_NEW_EXTRADATA */]) {
+        extradata = stream.sideData[1 /* AVPacketSideDataType.AV_PKT_DATA_NEW_EXTRADATA */];
+    }
+    if (extradata) {
+        const { profile, sampleRate, channels } = getAVCodecParameters(extradata);
+        stream.codecpar.profile = profile;
+        stream.codecpar.sampleRate = sampleRate;
+        stream.codecpar.chLayout.nbChannels = channels;
+        stream.codecpar.frameSize = profile === 5 /* MPEG4AudioObjectTypes.AAC_SBR */ ? 2048 : 1024;
+        stream.codecpar.format = 8 /* AVSampleFormat.AV_SAMPLE_FMT_FLTP */;
+    }
+}
+function avCodecParameters2Extradata(codecpar) {
+    const samplingFreqIndex = MPEG4SamplingFrequencyIndex[codecpar.sampleRate];
+    const channelConfig = codecpar.chLayout.nbChannels;
+    const profile = codecpar.profile === _constant__WEBPACK_IMPORTED_MODULE_0__.NOPTS_VALUE ? 2 /* MPEG4AudioObjectTypes.AAC_LC */ : codecpar.profile;
+    const extradata = new Uint8Array(2);
+    extradata[0] = ((profile & 0x1f) << 3) | ((samplingFreqIndex & 0x0e) >> 1);
+    extradata[1] = ((samplingFreqIndex & 0x01) << 7) | ((channelConfig & 0x0f) << 3);
+    return extradata;
+}
+/**
+ *
+ * adts 封装转 raw
+ *
+ * bits
+ * - 12  syncword
+ * - 1   ID (MPEG 标识位，固定为 1)
+ * - 2   Layer ( 固定为 0)
+ * - 1   Protection Absent ( 指示是否有 CRC 校验，1 表示没有校验）
+ * - 2   Profile
+ * - 4   Sampling Frequency Index ( 采样率的索引）
+ * - 1   Private Bit ( 保留位，一般设置为 0)
+ * - 3   Channel Configuration ( 音频通道数）
+ * - 1   Original Copy ( 原始拷贝标志位，一般设置为 0)
+ * - 1   Home ( 保留位，一般设置为 0)
+ * - 1   Copyright Identification Bit（置 0）
+ * - 1   Copyright Identification Start（置 0）
+ * - 13  Frame Length ( 帧长度，包括 ADTS 头和音频帧数据的长度）
+ * - 11  Buffer Fullness ( 缓冲区满度，可用于音频流的同步）
+ * - 2   Number of Raw Data Blocks in Frame ( 帧中原始数据块的数量）
+ * - 16  CRC (Protection Absent 控制）
+ * - N  raw aac data
+ *
+ */
+function parseADTSHeader(buffer) {
+    if (buffer.length < 7) {
+        return -1;
+    }
+    const syncWord = (buffer[0] << 4) | (buffer[1] >> 4);
+    if (syncWord !== 0xFFF) {
+        return -1;
+    }
+    /*
+      * const id = (buffer[1] & 0x08) >>> 3
+      * const layer = (buffer[1] & 0x06) >>> 1
+      */
+    const protectionAbsent = buffer[1] & 0x01;
+    const profile = (buffer[2] & 0xC0) >>> 6;
+    const samplingFrequencyIndex = (buffer[2] & 0x3C) >>> 2;
+    const channelConfiguration = ((buffer[2] & 0x01) << 2) | ((buffer[3] & 0xC0) >>> 6);
+    // adts_variable_header()
+    const aacFrameLength = ((buffer[3] & 0x03) << 11)
+        | (buffer[4] << 3)
+        | ((buffer[5] & 0xE0) >>> 5);
+    const numberOfRawDataBlocksInFrame = buffer[6] & 0x03;
+    let headerLength = protectionAbsent === 1 ? 7 : 9;
+    let framePayloadLength = aacFrameLength - headerLength;
+    return {
+        syncWord,
+        profile: profile + 1,
+        sampleRate: MPEG4SamplingFrequencies[samplingFrequencyIndex],
+        channels: MPEG4Channels[channelConfiguration],
+        aacFrameLength,
+        numberOfRawDataBlocksInFrame,
+        headerLength,
+        framePayloadLength
+    };
+}
+function parseLATMHeader(buffer, bitReader) {
+    if (!bitReader) {
+        bitReader = new common_io_BitReader__WEBPACK_IMPORTED_MODULE_1__["default"]();
+        bitReader.appendBuffer(buffer);
+    }
+    function getLATMValue() {
+        const bytesForValue = bitReader.readU(2);
+        let value = 0;
+        for (let i = 0; i <= bytesForValue; i++) {
+            value = value << 8;
+            value = value | bitReader.readU(8);
+        }
+        return value;
+    }
+    const now = bitReader.getPointer();
+    const info = {
+        syncWord: 0,
+        profile: 0,
+        sampleRate: 0,
+        channels: 0,
+        useSameStreamMux: false,
+        headerLength: 0,
+        framePayloadLength: 0,
+        muxLengthBytes: 0
+    };
+    const syncWord = bitReader.readU(11);
+    if (syncWord !== 0x2B7) {
+        return -1;
+    }
+    info.syncWord = syncWord;
+    info.muxLengthBytes = bitReader.readU(13);
+    const useSameStreamMux = bitReader.readU1() === 0x01;
+    info.useSameStreamMux = useSameStreamMux;
+    if (!useSameStreamMux) {
+        const audioMuxVersion = bitReader.readU1() === 0x01;
+        const audioMuxVersionA = audioMuxVersion && bitReader.readU1() === 0x01;
+        if (audioMuxVersionA) {
+            return -1;
+        }
+        if (audioMuxVersion) {
+            getLATMValue();
+        }
+        const allStreamsSameTimeFraming = bitReader.readU1() === 0x01;
+        if (!allStreamsSameTimeFraming) {
+            return -1;
+        }
+        const numSubFrames = bitReader.readU(6);
+        if (numSubFrames !== 0) {
+            return -1;
+        }
+        const numProgram = bitReader.readU(4);
+        if (numProgram !== 0) {
+            return -1;
+        }
+        const numLayer = bitReader.readU(3);
+        if (numLayer !== 0) {
+            return -1;
+        }
+        let fillBits = audioMuxVersion ? getLATMValue() : 0;
+        const audioObjectType = bitReader.readU(5);
+        fillBits -= 5;
+        const samplingFreqIndex = bitReader.readU(4);
+        fillBits -= 4;
+        const channelConfig = bitReader.readU(4);
+        fillBits -= 4;
+        bitReader.readU(3);
+        fillBits -= 3;
+        if (fillBits > 0) {
+            bitReader.readU(fillBits);
+        }
+        const frameLengthType = bitReader.readU(3);
+        if (frameLengthType === 0) {
+            bitReader.readU(8);
+        }
+        else {
+            return -1;
+        }
+        const otherDataPresent = bitReader.readU1() === 0x01;
+        if (otherDataPresent) {
+            if (audioMuxVersion) {
+                getLATMValue();
+            }
+            else {
+                let otherDataLenBits = 0;
+                while (true) {
+                    otherDataLenBits = otherDataLenBits << 8;
+                    const otherDataLenEsc = bitReader.readU1() === 0x01;
+                    const otherDataLenTmp = bitReader.readU(8);
+                    otherDataLenBits += otherDataLenTmp;
+                    if (!otherDataLenEsc) {
+                        break;
+                    }
+                }
+            }
+        }
+        const crcCheckPresent = bitReader.readU1() === 0x01;
+        if (crcCheckPresent) {
+            bitReader.readU(8);
+        }
+        info.profile = audioObjectType + 1;
+        info.sampleRate = MPEG4SamplingFrequencies[samplingFreqIndex];
+        info.channels = MPEG4Channels[channelConfig];
+    }
+    let length = 0;
+    while (true) {
+        const tmp = bitReader.readU(8);
+        length += tmp;
+        if (tmp !== 0xff) {
+            break;
+        }
+    }
+    info.framePayloadLength = length;
+    info.headerLength = bitReader.getPointer() - now + (bitReader.getBitLeft() === 8 ? 0 : 1);
+    return info;
+}
+
+
+/***/ }),
+
+/***/ "./src/avutil/codecs/ac3.ts":
+/*!**********************************!*\
+  !*** ./src/avutil/codecs/ac3.ts ***!
+  \**********************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   AC3ChannelLayout: () => (/* binding */ AC3ChannelLayout),
+/* harmony export */   parseHeader: () => (/* binding */ parseHeader)
+/* harmony export */ });
+/* harmony import */ var common_io_BitReader__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! common/io/BitReader */ "./src/common/io/BitReader.ts");
+/*
+ * libmedia ac3 util
+ *
+ * 版权所有 (C) 2024 赵高兴
+ * Copyright (C) 2024 Gaoxing Zhao
+ *
+ * 此文件是 libmedia 的一部分
+ * This file is part of libmedia.
+ *
+ * libmedia 是自由软件；您可以根据 GNU Lesser General Public License（GNU LGPL）3.1
+ * 或任何其更新的版本条款重新分发或修改它
+ * libmedia is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3.1 of the License, or (at your option) any later version.
+ *
+ * libmedia 希望能够为您提供帮助，但不提供任何明示或暗示的担保，包括但不限于适销性或特定用途的保证
+ * 您应自行承担使用 libmedia 的风险，并且需要遵守 GNU Lesser General Public License 中的条款和条件。
+ * libmedia is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ */
+
+const AC3ChannelLayout = [
+    3 /* AVChannelLayout.AV_CHANNEL_LAYOUT_STEREO */,
+    4 /* AVChannelLayout.AV_CHANNEL_LAYOUT_MONO */,
+    3 /* AVChannelLayout.AV_CHANNEL_LAYOUT_STEREO */,
+    7 /* AVChannelLayout.AV_CHANNEL_LAYOUT_SURROUND */,
+    259 /* AVChannelLayout.AV_CHANNEL_LAYOUT_2_1 */,
+    263 /* AVChannelLayout.AV_CHANNEL_LAYOUT_4POINT0 */,
+    1539 /* AVChannelLayout.AV_CHANNEL_LAYOUT_2_2 */,
+    1543 /* AVChannelLayout.AV_CHANNEL_LAYOUT_5POINT0 */
+];
+const AC3FrameSizeTab = [
+    [64, 69, 96],
+    [64, 70, 96],
+    [80, 87, 120],
+    [80, 88, 120],
+    [96, 104, 144],
+    [96, 105, 144],
+    [112, 121, 168],
+    [112, 122, 168],
+    [128, 139, 192],
+    [128, 140, 192],
+    [160, 174, 240],
+    [160, 175, 240],
+    [192, 208, 288],
+    [192, 209, 288],
+    [224, 243, 336],
+    [224, 244, 336],
+    [256, 278, 384],
+    [256, 279, 384],
+    [320, 348, 480],
+    [320, 349, 480],
+    [384, 417, 576],
+    [384, 418, 576],
+    [448, 487, 672],
+    [448, 488, 672],
+    [512, 557, 768],
+    [512, 558, 768],
+    [640, 696, 960],
+    [640, 697, 960],
+    [768, 835, 1152],
+    [768, 836, 1152],
+    [896, 975, 1344],
+    [896, 976, 1344],
+    [1024, 1114, 1536],
+    [1024, 1115, 1536],
+    [1152, 1253, 1728],
+    [1152, 1254, 1728],
+    [1280, 1393, 1920],
+    [1280, 1394, 1920],
+];
+const CenterLevelsTab = [4, 5, 6, 5];
+const SurroundLevelsTab = [4, 6, 7, 6];
+const AC3SampleRateTab = [48000, 44100, 32000, 0];
+const AC3BitrateTab = [
+    32, 40, 48, 56, 64, 80, 96, 112, 128,
+    160, 192, 224, 256, 320, 384, 448, 512, 576, 640
+];
+const AC3ChannelsTab = [
+    2, 1, 2, 3, 3, 4, 4, 5
+];
+const EAC3Blocks = [
+    1, 2, 3, 6
+];
+const AC3_HEADER_SIZE = 7;
+function parseHeader(buf) {
+    const bitReader = new common_io_BitReader__WEBPACK_IMPORTED_MODULE_0__["default"](buf.length);
+    bitReader.appendBuffer(buf);
+    const info = {
+        syncWord: 0,
+        crc1: 0,
+        srCode: 0,
+        bitstreamId: 0,
+        bitstreamMode: 0,
+        channelMode: 0,
+        lfeOn: 0,
+        frameType: 0,
+        substreamId: 0,
+        centerMixLevel: 0,
+        surroundMixLevel: 0,
+        channelMap: 0,
+        numBlocks: 0,
+        dolbySurroundMode: 0,
+        srShift: 0,
+        sampleRate: 0,
+        bitrate: 0,
+        channels: 0,
+        frameSize: 0,
+        channelLayout: BigInt(0),
+        ac3BitrateCode: 0
+    };
+    info.syncWord = bitReader.readU(16);
+    if (info.syncWord !== 0x0B77) {
+        return -1;
+    }
+    info.bitstreamId = bitReader.peekU(29) & 0x1f;
+    if (info.bitstreamId > 16) {
+        return -2;
+    }
+    info.numBlocks = 6;
+    info.ac3BitrateCode = -1;
+    info.centerMixLevel = 5;
+    info.surroundMixLevel = 6;
+    info.dolbySurroundMode = 0 /* AC3DolbySurroundMode.AC3_DSURMOD_NOTINDICATED */;
+    if (info.bitstreamId <= 10) {
+        info.crc1 = bitReader.readU(16);
+        info.srCode = bitReader.readU(2);
+        if (info.srCode === 3) {
+            return -3;
+        }
+        const frameSizeCode = bitReader.readU(6);
+        if (frameSizeCode > 37) {
+            return -4;
+        }
+        info.ac3BitrateCode = (frameSizeCode >> 1);
+        bitReader.readU(5);
+        info.bitstreamMode = bitReader.readU(3);
+        info.channelMode = bitReader.readU(3);
+        if (info.channelMode == 2 /* AC3ChannelMode.AC3_CHMODE_STEREO */) {
+            info.dolbySurroundMode = bitReader.readU(2);
+        }
+        else {
+            if ((info.channelMode & 1) && info.channelMode != 1 /* AC3ChannelMode.AC3_CHMODE_MONO */) {
+                info.centerMixLevel = CenterLevelsTab[bitReader.readU(2)];
+            }
+            if (info.channelMode & 4) {
+                info.surroundMixLevel = SurroundLevelsTab[bitReader.readU(2)];
+            }
+        }
+        info.lfeOn = bitReader.readU(1);
+        info.srShift = Math.max(info.bitstreamId, 8) - 8;
+        info.sampleRate = AC3SampleRateTab[info.srCode] >> info.srShift;
+        info.bitrate = (AC3BitrateTab[info.ac3BitrateCode] * 1000) >> info.srShift;
+        info.channels = AC3ChannelsTab[info.channelMode] + info.lfeOn;
+        info.frameSize = AC3FrameSizeTab[frameSizeCode][info.srCode] * 2;
+        info.frameType = 2 /* EAC3FrameType.EAC3_FRAME_TYPE_AC3_CONVERT */;
+        info.substreamId = 0;
+    }
+    else {
+        /* Enhanced AC-3 */
+        info.crc1 = 0;
+        info.frameType = bitReader.readU(2);
+        if (info.frameType == 3 /* EAC3FrameType.EAC3_FRAME_TYPE_RESERVED */) {
+            return -5;
+        }
+        info.substreamId = bitReader.readU(3);
+        info.frameSize = (bitReader.readU(11) + 1) << 1;
+        if (info.frameSize < AC3_HEADER_SIZE) {
+            return -6;
+        }
+        info.srCode = bitReader.readU(2);
+        if (info.srCode == 3) {
+            const srCode2 = bitReader.readU(2);
+            if (srCode2 == 3) {
+                return -7;
+            }
+            info.sampleRate = AC3SampleRateTab[srCode2] / 2;
+            info.srShift = 1;
+        }
+        else {
+            info.numBlocks = EAC3Blocks[bitReader.readU(2)];
+            info.sampleRate = AC3SampleRateTab[info.srCode];
+            info.srShift = 0;
+        }
+        info.channelMode = bitReader.readU(3);
+        info.lfeOn = bitReader.readU(1);
+        info.bitrate = 8 * info.frameSize * info.sampleRate / (info.numBlocks * 256);
+        info.channels = AC3ChannelsTab[info.channelMode] + info.lfeOn;
+    }
+    info.channelLayout = BigInt(AC3ChannelLayout[info.channelMode]);
+    if (info.lfeOn) {
+        info.channelLayout |= BigInt(8 /* AVChannelLayout.AV_CHANNEL_LAYOUT_LOW_FREQUENCY */);
+    }
+    return info;
+}
+
+
+/***/ }),
+
+/***/ "./src/avutil/codecs/dts.ts":
+/*!**********************************!*\
+  !*** ./src/avutil/codecs/dts.ts ***!
+  \**********************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   DTS_PCMBLOCK_SAMPLES: () => (/* binding */ DTS_PCMBLOCK_SAMPLES),
+/* harmony export */   parseHeader: () => (/* binding */ parseHeader)
+/* harmony export */ });
+/* harmony import */ var common_io_BitReader__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! common/io/BitReader */ "./src/common/io/BitReader.ts");
+/* harmony import */ var common_math_align__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! common/math/align */ "./src/common/math/align.ts");
+/*
+ * libmedia dts util
+ *
+ * 版权所有 (C) 2024 赵高兴
+ * Copyright (C) 2024 Gaoxing Zhao
+ *
+ * 此文件是 libmedia 的一部分
+ * This file is part of libmedia.
+ *
+ * libmedia 是自由软件；您可以根据 GNU Lesser General Public License（GNU LGPL）3.1
+ * 或任何其更新的版本条款重新分发或修改它
+ * libmedia is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3.1 of the License, or (at your option) any later version.
+ *
+ * libmedia 希望能够为您提供帮助，但不提供任何明示或暗示的担保，包括但不限于适销性或特定用途的保证
+ * 您应自行承担使用 libmedia 的风险，并且需要遵守 GNU Lesser General Public License 中的条款和条件。
+ * libmedia is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ */
+
+
+const DTSChannelTab = [1, 2, 2, 2, 2, 3, 3, 4, 4, 5, 6, 6, 6, 7, 8, 8];
+const DTSSampleRateTab = [0, 8000, 16000, 32000, 0, 0, 11025, 22050, 44100, 0, 0, 12000, 24000, 48000, 96000, 192000];
+const DTSBitrateTab = [32000, 56000, 64000, 96000, 112000, 128000, 192000, 224000, 256000, 320000, 384000, 448000,
+    512000, 576000, 640000, 768000, 960000, 1024000, 1152000, 1280000, 1344000, 1408000, 1411200, 1472000, 1536000,
+    1920000, 2048000, 3072000, 3840000, 0, 0, 0
+];
+const DTS_PCMBLOCK_SAMPLES = 32;
+function parseHeader(buf) {
+    const bitReader = new common_io_BitReader__WEBPACK_IMPORTED_MODULE_0__["default"](buf.length);
+    bitReader.appendBuffer(buf);
+    const info = {
+        syncWord: 0,
+        frameType: 0,
+        deficitSamples: 0,
+        crcFlag: 0,
+        sampleBlock: 0,
+        frameSize: 0,
+        channelIndex: 0,
+        sampleRateIndex: 0,
+        bitrateIndex: 0,
+        channels: 0,
+        sampleRate: 0,
+        bitrate: 0
+    };
+    info.syncWord = bitReader.readU(32);
+    if (info.syncWord !== 0x7ffe8001 && info.syncWord !== 0xfe7f0180) {
+        return -1;
+    }
+    info.frameType = bitReader.readU1();
+    info.deficitSamples = bitReader.readU(5) + 1;
+    info.crcFlag = bitReader.readU1();
+    info.sampleBlock = bitReader.readU(7) + 1;
+    info.frameSize = (0,common_math_align__WEBPACK_IMPORTED_MODULE_1__["default"])(bitReader.readU(14) + 1, 4);
+    info.channelIndex = bitReader.readU(6);
+    info.sampleRateIndex = bitReader.readU(4);
+    info.bitrateIndex = bitReader.readU(5);
+    info.channels = DTSChannelTab[info.channelIndex];
+    info.sampleRate = DTSSampleRateTab[info.sampleRateIndex];
+    info.bitrate = DTSBitrateTab[info.bitrateIndex];
+    return info;
+}
+
+
+/***/ }),
+
+/***/ "./src/avutil/codecs/mp3.ts":
+/*!**********************************!*\
+  !*** ./src/avutil/codecs/mp3.ts ***!
+  \**********************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   MP3Profile2Name: () => (/* binding */ MP3Profile2Name),
+/* harmony export */   getBitRateByVersionLayerIndex: () => (/* binding */ getBitRateByVersionLayerIndex),
+/* harmony export */   getFrameSizeByVersionLayer: () => (/* binding */ getFrameSizeByVersionLayer),
+/* harmony export */   getProfileByLayer: () => (/* binding */ getProfileByLayer),
+/* harmony export */   getSampleRateByVersionIndex: () => (/* binding */ getSampleRateByVersionIndex),
+/* harmony export */   parseAVCodecParameters: () => (/* binding */ parseAVCodecParameters)
+/* harmony export */ });
+/* harmony import */ var _constant__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../constant */ "./src/avutil/constant.ts");
+/*
+ * libmedia mp3 util
+ *
+ * 版权所有 (C) 2024 赵高兴
+ * Copyright (C) 2024 Gaoxing Zhao
+ *
+ * 此文件是 libmedia 的一部分
+ * This file is part of libmedia.
+ *
+ * libmedia 是自由软件；您可以根据 GNU Lesser General Public License（GNU LGPL）3.1
+ * 或任何其更新的版本条款重新分发或修改它
+ * libmedia is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3.1 of the License, or (at your option) any later version.
+ *
+ * libmedia 希望能够为您提供帮助，但不提供任何明示或暗示的担保，包括但不限于适销性或特定用途的保证
+ * 您应自行承担使用 libmedia 的风险，并且需要遵守 GNU Lesser General Public License 中的条款和条件。
+ * libmedia is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ */
+
+const MpegAudioV10SampleRateTable = [44100, 48000, 32000, 0];
+const MpegAudioV20SampleRateTable = [22050, 24000, 16000, 0];
+const MpegAudioV25SampleRateTable = [11025, 12000, 8000, 0];
+const MpegAudioV10FrameSizeTable = [0, 1152, 1152, 384];
+const MpegAudioV20FrameSizeTable = [0, 576, 1152, 384];
+const MpegAudioV25FrameSizeTable = [0, 576, 1152, 384];
+const MpegAudioV1L1BitRateTable = [0, 32, 64, 96, 128, 160, 192, 224, 256, 288, 320, 352, 384, 416, 448, -1];
+const MpegAudioV1L2BitRateTable = [0, 32, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 384, -1];
+const MpegAudioV1L3BitRateTable = [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, -1];
+const MpegAudioV2L1BitRateTable = [0, 32, 48, 56, 64, 80, 96, 112, 128, 144, 160, 176, 192, 224, 256, -1];
+const MpegAudioV2L2L3BitRateTable = [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160, -1];
+function getSampleRateByVersionIndex(version, samplingFreqIndex) {
+    switch (version) {
+        case 0:
+            // MPEG 2.5
+            return MpegAudioV25SampleRateTable[samplingFreqIndex];
+        case 2:
+            // MPEG 2
+            return MpegAudioV20SampleRateTable[samplingFreqIndex];
+        case 3:
+            // MPEG 1
+            return MpegAudioV10SampleRateTable[samplingFreqIndex];
+    }
+    return _constant__WEBPACK_IMPORTED_MODULE_0__.NOPTS_VALUE;
+}
+function getFrameSizeByVersionLayer(version, layer) {
+    switch (version) {
+        case 0:
+            // MPEG 2.5
+            return MpegAudioV25FrameSizeTable[layer];
+        case 2:
+            // MPEG 2
+            return MpegAudioV20FrameSizeTable[layer];
+        case 3:
+            // MPEG 1
+            return MpegAudioV10FrameSizeTable[layer];
+    }
+    return _constant__WEBPACK_IMPORTED_MODULE_0__.NOPTS_VALUE;
+}
+function getBitRateByVersionLayerIndex(version, layer, index) {
+    switch (layer) {
+        // layer3
+        case 1:
+            switch (version) {
+                case 0:
+                case 2:
+                    return MpegAudioV2L2L3BitRateTable[index];
+                case 3:
+                    return MpegAudioV1L3BitRateTable[index];
+            }
+            break;
+        // layer2
+        case 2:
+            switch (version) {
+                case 0:
+                case 2:
+                    return MpegAudioV2L2L3BitRateTable[index];
+                case 3:
+                    return MpegAudioV1L2BitRateTable[index];
+            }
+        // layer1
+        case 3:
+            switch (version) {
+                case 0:
+                case 2:
+                    return MpegAudioV2L1BitRateTable[index];
+                case 3:
+                    return MpegAudioV1L1BitRateTable[index];
+            }
+    }
+    return _constant__WEBPACK_IMPORTED_MODULE_0__.NOPTS_VALUE;
+}
+function getProfileByLayer(layer) {
+    switch (layer) {
+        case 1:
+            // Layer 3
+            return 34;
+        case 2:
+            // Layer 2
+            return 33;
+        case 3:
+            // Layer 1
+            return 32;
+    }
+    return _constant__WEBPACK_IMPORTED_MODULE_0__.NOPTS_VALUE;
+}
+const MP3Profile2Name = {
+    [32 /* MP3Profile.Layer1 */]: 'Layer1',
+    [33 /* MP3Profile.Layer2 */]: 'Layer2',
+    [34 /* MP3Profile.Layer3 */]: 'Layer3'
+};
+function parseAVCodecParameters(stream, buffer) {
+    if (buffer && buffer.length >= 4) {
+        const ver = (buffer[1] >>> 3) & 0x03;
+        const layer = (buffer[1] & 0x06) >> 1;
+        // const bitrateIndex = (buffer[2] & 0xF0) >>> 4
+        const samplingFreqIndex = (buffer[2] & 0x0C) >>> 2;
+        const channelMode = (buffer[3] >>> 6) & 0x03;
+        const channelCount = channelMode !== 3 ? 2 : 1;
+        const profile = getProfileByLayer(layer);
+        const sampleRate = getSampleRateByVersionIndex(ver, samplingFreqIndex);
+        stream.codecpar.profile = profile;
+        stream.codecpar.sampleRate = sampleRate;
+        stream.codecpar.chLayout.nbChannels = channelCount;
+    }
+}
+
+
+/***/ }),
+
+/***/ "./src/avutil/codecs/mpegvideo.ts":
+/*!****************************************!*\
+  !*** ./src/avutil/codecs/mpegvideo.ts ***!
+  \****************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   isIDR: () => (/* binding */ isIDR)
+/* harmony export */ });
+/* harmony import */ var _util_avpacket__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../util/avpacket */ "./src/avutil/util/avpacket.ts");
+/*
+ * libmedia mpegvideo util
+ *
+ * 版权所有 (C) 2024 赵高兴
+ * Copyright (C) 2024 Gaoxing Zhao
+ *
+ * 此文件是 libmedia 的一部分
+ * This file is part of libmedia.
+ *
+ * libmedia 是自由软件；您可以根据 GNU Lesser General Public License（GNU LGPL）3.1
+ * 或任何其更新的版本条款重新分发或修改它
+ * libmedia is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3.1 of the License, or (at your option) any later version.
+ *
+ * libmedia 希望能够为您提供帮助，但不提供任何明示或暗示的担保，包括但不限于适销性或特定用途的保证
+ * 您应自行承担使用 libmedia 的风险，并且需要遵守 GNU Lesser General Public License 中的条款和条件。
+ * libmedia is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ */
+
+function isIDR(avpacket) {
+    const data = (0,_util_avpacket__WEBPACK_IMPORTED_MODULE_0__.getAVPacketData)(avpacket);
+    for (let i = 0; i < data.length - 6; i++) {
+        if (data[i] === 0
+            && data[i + 1] === 0
+            && data[i + 2] === 1
+            && data[i + 3] === 0) {
+            const picType = (data[i + 5] >> 3) & 7;
+            return picType === 1 /* MpegVideoPictureType.I */;
+        }
+    }
+    return false;
+}
+
+
+/***/ }),
+
+/***/ "./src/avutil/codecs/opus.ts":
+/*!***********************************!*\
+  !*** ./src/avutil/codecs/opus.ts ***!
+  \***********************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   avCodecParameters2Extradata: () => (/* binding */ avCodecParameters2Extradata),
+/* harmony export */   getBufferSamples: () => (/* binding */ getBufferSamples),
+/* harmony export */   parseAVCodecParameters: () => (/* binding */ parseAVCodecParameters)
+/* harmony export */ });
+/* unused harmony export durations */
+/* harmony import */ var common_io_BufferReader__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! common/io/BufferReader */ "./src/common/io/BufferReader.ts");
+/* harmony import */ var common_io_BufferWriter__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! common/io/BufferWriter */ "./src/common/io/BufferWriter.ts");
+/* harmony import */ var _util_rational__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../util/rational */ "./src/avutil/util/rational.ts");
+/*
+ * libmedia opus util
+ *
+ * 版权所有 (C) 2024 赵高兴
+ * Copyright (C) 2024 Gaoxing Zhao
+ *
+ * 此文件是 libmedia 的一部分
+ * This file is part of libmedia.
+ *
+ * libmedia 是自由软件；您可以根据 GNU Lesser General Public License（GNU LGPL）3.1
+ * 或任何其更新的版本条款重新分发或修改它
+ * libmedia is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3.1 of the License, or (at your option) any later version.
+ *
+ * libmedia 希望能够为您提供帮助，但不提供任何明示或暗示的担保，包括但不限于适销性或特定用途的保证
+ * 您应自行承担使用 libmedia 的风险，并且需要遵守 GNU Lesser General Public License 中的条款和条件。
+ * libmedia is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ */
+
+
+
+const durations = [
+    /* Silk NB */
+    480, 960, 1920, 2880,
+    /* Silk MB */
+    480, 960, 1920, 2880,
+    /* Silk WB */
+    480, 960, 1920, 2880,
+    /* Hybrid SWB */
+    480, 960,
+    /* Hybrid FB */
+    480, 960,
+    /* CELT NB */
+    120, 240, 480, 960,
+    /* CELT NB */
+    120, 240, 480, 960,
+    /* CELT NB */
+    120, 240, 480, 960,
+    /* CELT NB */
+    120, 240, 480, 960
+];
+function getBufferSamples(buffer) {
+    let toc = 0, frameDuration = 0, nframes = 0;
+    if (buffer.length < 1) {
+        return 0;
+    }
+    toc = buffer[0];
+    frameDuration = durations[toc >> 3];
+    switch (toc & 3) {
+        case 0:
+            nframes = 1;
+            break;
+        case 1:
+            nframes = 2;
+            break;
+        case 2:
+            nframes = 2;
+            break;
+        case 3:
+            if (buffer.length < 2) {
+                return 0;
+            }
+            nframes = buffer[1] & 63;
+            break;
+    }
+    return nframes * frameDuration;
+}
+/**
+ * opus extradata
+ *
+ * - 8 bytes Magic Signature: OpusHead
+ * - 1 bytes unsigned, 对应值 0x01 version
+ * - 1 bytes unsigned, channels 它可能和编码声道数不一致， 它可能被修改成 packet-by-packet, 对应值 0x01
+ * - 2 bytes unsigned, preSkip 这是要从开始播放时的解码器输出， 从页面的颗粒位置减去以计算其 PCM 样本位置。
+ * - 4 bytes unsigned, sampleRate 原始输入采样率
+ * - 2 bytes signed, outputGain 这是解码时要应用的增益， 20 * log10 缩放解码器输出以实现所需的播放音量
+ * - 1 bytes unsigned, channelMappingFamily 指示输出渠道的顺序和语音含义。该八位位组的每个当前指定的值表示一个映射系列，它定义了一组允许的通道数，以及每个允许的通道数的通道名称的有序集合
+ * - channelMappingTable 可选， 当 Channel Mapping Family 为 0 时被省略。
+ *  - 1 bytes, streamCount, unsigned ogg packet 里面编码了多少路 stream
+ *  - 1 bytes, coupledStreamCount, unsigned 标识有多少路流是双声声道，必须小于 streamCount
+ *  - C bytes, C 为总输出声道数 coupledStreamCount + streamCount
+ *
+ */
+function parseAVCodecParameters(stream, extradata) {
+    if (!extradata && stream.sideData[1 /* AVPacketSideDataType.AV_PKT_DATA_NEW_EXTRADATA */]) {
+        extradata = stream.sideData[1 /* AVPacketSideDataType.AV_PKT_DATA_NEW_EXTRADATA */];
+    }
+    if (extradata && extradata.length >= 19) {
+        const reader = new common_io_BufferReader__WEBPACK_IMPORTED_MODULE_0__["default"](extradata, false);
+        reader.skip(9);
+        stream.codecpar.chLayout.nbChannels = reader.readUint8();
+        stream.codecpar.initialPadding = reader.readUint16();
+        stream.codecpar.sampleRate = reader.readUint32();
+        stream.codecpar.seekPreroll = Number((0,_util_rational__WEBPACK_IMPORTED_MODULE_2__.avRescaleQ)(BigInt(80), {
+            den: 1000,
+            num: 1
+        }, {
+            den: 48000,
+            num: 1
+        }));
+    }
+}
+function avCodecParameters2Extradata(codecpar) {
+    const extradata = new Uint8Array(19);
+    const writer = new common_io_BufferWriter__WEBPACK_IMPORTED_MODULE_1__["default"](extradata, false);
+    writer.writeString('OpusHead');
+    writer.writeUint8(0x01);
+    writer.writeUint8(codecpar.chLayout.nbChannels);
+    writer.writeUint16(codecpar.initialPadding);
+    writer.writeUint32(codecpar.sampleRate);
+    return extradata;
 }
 
 
