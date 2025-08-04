@@ -13,7 +13,7 @@
       <!-- 播放器进度条区域 -->
       <div class="avp-bar-wrap" v-show="control.show" ref="avpBarWrap">
         <div class="avp-bar"></div>
-        <div class="avp-bar-played" :style="{width:`${control.progress}%`}"></div>
+        <div class="avp-bar-played" draggable="true" :style="{width:`${control.progress}%`}"></div>
         <div class="avp-bar-seeking" :style="{width:`${control.tmpSeeking}px`}"></div>
         <div class="avp-bar-loaded"></div>
         <div class="avp-bar-round"></div>
@@ -37,6 +37,15 @@
 
           <div class="avp-volume" v-if="!control.muted">
             <div class="avp-icon avp-volume-icon" @click="onToggleAudio(1)">
+              <div v-if="true" class="volume-panel"
+                   style="bottom: 45px; left: 9px;width: 16px; z-index: 8; padding: 0 0 5px 0; display: flex; flex-direction: column; align-items: center; ">
+                <div class="volume-val">100</div>
+                <div class="volume-slider"
+                     style="height: 86px; background-color: #f2f2f2; width: 10px;  display: flex;flex-direction: column;">
+                  <div class="volume-loaded" style="flex: 1"></div>
+                  <div class="volume-indicator" draggable="true" style="height: 90%; background-color: red; "></div>
+                </div>
+              </div>
               <svg xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 21 32">
                 <path
                     d="M13.728 6.272v19.456q0 0.448-0.352 0.8t-0.8 0.32-0.8-0.32l-5.952-5.952h-4.672q-0.48 0-0.8-0.352t-0.352-0.8v-6.848q0-0.48 0.352-0.8t0.8-0.352h4.672l5.952-5.952q0.32-0.32 0.8-0.32t0.8 0.32 0.352 0.8zM20.576 16q0 1.344-0.768 2.528t-2.016 1.664q-0.16 0.096-0.448 0.096-0.448 0-0.8-0.32t-0.32-0.832q0-0.384 0.192-0.64t0.544-0.448 0.608-0.384 0.512-0.64 0.192-1.024-0.192-1.024-0.512-0.64-0.608-0.384-0.544-0.448-0.192-0.64q0-0.48 0.32-0.832t0.8-0.32q0.288 0 0.448 0.096 1.248 0.48 2.016 1.664t0.768 2.528z"></path>
@@ -214,7 +223,7 @@ export default {
   beforeMount() {
   },
   mounted() {
-    // console.log('[mounted]', { source: this.source, avp: this.avp })
+    console.log('[mounted]', { source: this.source, avp: this.avp })
     this.initStatus()
     this.loadAvPlayer();
 
@@ -272,12 +281,6 @@ export default {
         // console.log('[addEventListener] progress', pts)
       })
       this.avp.on('time', (currentTime) => {
-        // this.control.currentTime = Number(currentTime) / 1000
-        // this.control.progress = (100 * this.control.currentTime / this.control.duration).toFixed(2)
-        // if (this.$refs.avpBarWrap) {
-        //
-        //   this.control.forwardLeftOffset = Math.floor(this.control.currentTime * this.$refs.avpBarWrap.offsetWidth / this.control.duration)
-        // }
         this.updateCurrentTime(currentTime)
       })
 
@@ -304,9 +307,7 @@ export default {
     updateCurrentTime(currentTime) {
       this.control.currentTime = Number(currentTime) / 1000
       this.control.progress = (100 * this.control.currentTime / this.control.duration).toFixed(2)
-      console.log('[this.control.progress]', this.control.progress)
       if (this.$refs.avpBarWrap) {
-
         this.control.forwardLeftOffset = Math.floor(this.control.currentTime * this.$refs.avpBarWrap.offsetWidth / this.control.duration)
       }
     },
@@ -509,7 +510,7 @@ export default {
 
       }).finally(() => {
         setTimeout(() => {
-          this.control.show = false
+          // this.control.show = false
         }, 8000)
       })
     },
@@ -544,7 +545,6 @@ export default {
       }
     },
     onSeeking(seconds) {
-      console.log('[onSeeking]', seconds)
       this.control.playerStatus = this.AVPlayerStatus.SEEKING
       const seek = BigInt(Number(seconds)) * 1000n
       this.updateCurrentTime(seek)
@@ -585,7 +585,7 @@ export default {
       }
       this.control.show = true
       setTimeout(() => {
-        this.control.show = false
+        // this.control.show = false
       }, 8000)
     },
 
@@ -722,6 +722,14 @@ export default {
         fill: #fff;
       }
 
+    }
+
+    .avp-volume-icon {
+      position: relative;
+
+      .volume-panel {
+        position: absolute;
+      }
     }
   }
 
