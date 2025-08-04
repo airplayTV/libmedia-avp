@@ -1,7 +1,7 @@
 <template>
   <div id="avplayer" ref="avplayer" class="avp-control">
 
-    <div class="avp-control-wrap" @mouseover="setTimeoutControlDismiss">
+    <div class="avp-control-wrap" @mousemove="setTimeoutControlDismiss">
 
       <!-- 播放器中间区域 -->
       <div class="avp-play-area" @click="onTogglePlay">
@@ -16,17 +16,13 @@
         <div class="avp-bar-played" :style="{width:`${control.progress}%`}"></div>
         <div class="avp-bar-seeking" :style="{width:`${control.tmpSeeking}px`}"></div>
         <div class="avp-bar-loaded"></div>
-        <div class="avp-bar-round">
-          <span :style="{marginLeft:`${control.forwardLeftOffset}px`}">
-            {{ showFormatTime(control.forwardSeconds) }}
-          </span>
-        </div>
+        <div class="avp-bar-round"></div>
       </div>
 
       <!-- 播放器底部控制区域 -->
       <div class="avp-controller" v-show="control.show">
         <div class="avp-icons avp-icons-left">
-          <div class="avp-icon avp-play-icon" v-if="control.playerStatus===AVPlayerStatus.PLAYED" @click="onTogglePlay">
+          <div class="avp-icon avp-play-icon" v-if="control.playerStatus!==AVPlayerStatus.PLAYED" @click="onTogglePlay">
             <svg xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 16 32">
               <path
                   d="M15.552 15.168q0.448 0.32 0.448 0.832 0 0.448-0.448 0.768l-13.696 8.512q-0.768 0.512-1.312 0.192t-0.544-1.28v-16.448q0-0.96 0.544-1.28t1.312 0.192z"></path>
@@ -66,9 +62,11 @@
           </div>
         </div>
         <div class="avp-icons avp-icons-right">
+          <!--
           <div class="flex-center">
             <a target="_blank" href="https://github.com/libmedia-avp">github.com/libmedia-avp</a>
           </div>
+          -->
 
           <!--
           <div class="avp-icon avp-setting-icon">
@@ -242,6 +240,7 @@ export default {
       }
 
       this.$refs.avpBarWrap.addEventListener('mousemove', (data) => {
+        // console.log('[mousemove]', data)
         if (data.offsetX > 0 && data.offsetY > 0) {
           this.control.forwardSeconds = data.offsetX * this.control.duration / this.$refs.avpBarWrap.offsetWidth
           if (data.offsetX + 50 < this.$refs.avpBarWrap.offsetWidth) {
@@ -251,11 +250,13 @@ export default {
         }
       })
       this.$refs.avpBarWrap.addEventListener('click', (data) => {
+        // console.log('[click]', data)
         if (data.offsetX > 0 && data.offsetY > 0) {
           this.onSeeking(Math.floor(data.offsetX * this.control.duration / this.$refs.avpBarWrap.offsetWidth))
         }
       })
       this.$refs.avpBarWrap.addEventListener('mouseleave', (data) => {
+        // console.log('[mouseleave]', data)
         this.control.tmpSeeking = Math.floor(this.$refs.avpBarWrap.offsetWidth * this.control.progress / 100)
       })
 
@@ -302,7 +303,7 @@ export default {
 
     },
     onTogglePlay() {
-      console.log('[onTogglePlay]', this.avp)
+      // console.log('[onTogglePlay]', this.avp)
       if (!this.isAvpReady()) {
         return
       }
@@ -311,8 +312,9 @@ export default {
       } else {
         this.avp.play()
       }
-      this.status = this.avp.getStatus()
-      this.control.playerStatus = this.avp.getStatus()
+      setTimeout(() => {
+        this.control.playerStatus = this.avp.getStatus()
+      }, 100)
     },
     loadAvPlayer() {
       if (!this.source || !this.source.url) {
@@ -467,7 +469,8 @@ export default {
         Promise.all([this.avp.getVideoList(), this.avp.getAudioList(), this.avp.getSubtitleList()]).then((data) => {
           // console.log('[Promise.all.data]', data)
           this.avp.play({ audio: true, video: true, subtitle: true }).then(() => {
-            // console.log('[avp.play.ok]')
+            // console.log('[avp.play.ok]', this.avp.getStatus())
+            this.control.playerStatus = this.avp.getStatus()
             if (!this.avp.isDash()) {
               // const audioStreams = this.avp.getStreams().filter((s => s.mediaType === 'Audio'))
               // const videoStreams = this.avp.getStreams().filter((s => s.mediaType === 'Video'))
@@ -526,7 +529,8 @@ export default {
       this.control.playerStatus = this.AVPlayerStatus.SEEKING
       this.avp.seek(BigInt(Number(seconds)) * 1000n).then(() => {
         this.control.playerStatus = this.avp.getStatus()
-        console.log('[OK]', this.control.playerStatus)
+        console.log('[OK]', typeof this.control.playerStatus, this.control.playerStatus)
+        //       console.log('[control.playerStatus', { b: this.control.playerStatus })
       }).catch(err => {
         console.log('[errX]', err)
       })
@@ -682,12 +686,13 @@ export default {
 
     .avp-icons {
       .avp-icon {
-        padding: 10px;
+        padding: 20px 4px 15px 4px;
+        display: flex;
       }
 
       svg {
-        width: 30px;
-        height: 30px;
+        width: 28px;
+        height: 28px;
         cursor: pointer;
       }
 
