@@ -1,12 +1,20 @@
 <template>
-  <div id="avp-container" @click="">
-    <div v-show="tipsModal.show" class="tips" ref="tipsRef">{{ tipsModal.msg }}</div>
+
+
+  <div>
+    <div v-if="false" id="avp-container" @click="">
+      <div v-show="tipsModal.show" class="tips" ref="tipsRef">{{ tipsModal.msg }}</div>
+    </div>
+
+    <avp-control :source="videoPlayInfo" />
+
   </div>
 </template>
 
 <script>
-import {defineComponent, getCurrentInstance, onBeforeMount, onBeforeUnmount, onMounted, ref} from "vue";
+import {defineComponent, ref} from "vue";
 import {useRoute} from "vue-router";
+import AvpControl from "@/components/avp-control.vue";
 
 let player = null
 let route = null
@@ -228,14 +236,16 @@ function onBeforeUnmountHandler() {
 }
 
 export default defineComponent({
+  components: { AvpControl },
   setup() {
     route = useRoute()
-    onBeforeMount(onBeforeMountHandler)
-    onMounted(onMountedHandler)
-    onBeforeUnmount(onBeforeUnmountHandler)
-    pageInstance.value = getCurrentInstance()
+    // onBeforeMount(onBeforeMountHandler)
+    // onMounted(onMountedHandler)
+    // onBeforeUnmount(onBeforeUnmountHandler)
+    // pageInstance.value = getCurrentInstance()
     return {
       tipsModal: tipsModal,
+      videoPlayInfo: videoPlayInfo,
     }
   }
 })
@@ -243,32 +253,6 @@ export default defineComponent({
 </script>
 
 <style scoped>
-#avp-container {
-  width: 100%;
-  height: 100vh;
-  background-color: #000000;
-  position: relative;
 
-  .tips {
-    position: absolute;
-    top: 0;
-    left: 0;
-    z-index: 99;
-    color: #ffffff;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    align-content: center;
-    width: 100%;
-    height: 100%;
-  }
-}
 
-/deep/ .avplayer-ui-header {
-  display: none;
-}
-
-/deep/ .avplayer-ui-folder-container {
-  display: none;
-}
 </style>
