@@ -28,7 +28,6 @@
                   d="M15.552 15.168q0.448 0.32 0.448 0.832 0 0.448-0.448 0.768l-13.696 8.512q-0.768 0.512-1.312 0.192t-0.544-1.28v-16.448q0-0.96 0.544-1.28t1.312 0.192z"></path>
             </svg>
           </div>
-
           <div class="avp-icon avp-play-icon" v-else @click="onTogglePlay">
             <svg xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 17 32">
               <path
@@ -36,24 +35,22 @@
             </svg>
           </div>
 
-          <div class="avp-volume">
-            <div class="avp-icon avp-volume-icon">
+          <div class="avp-volume" v-if="!control.muted">
+            <div class="avp-icon avp-volume-icon" @click="onToggleAudio(1)">
               <svg xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 21 32">
                 <path
                     d="M13.728 6.272v19.456q0 0.448-0.352 0.8t-0.8 0.32-0.8-0.32l-5.952-5.952h-4.672q-0.48 0-0.8-0.352t-0.352-0.8v-6.848q0-0.48 0.352-0.8t0.8-0.352h4.672l5.952-5.952q0.32-0.32 0.8-0.32t0.8 0.32 0.352 0.8zM20.576 16q0 1.344-0.768 2.528t-2.016 1.664q-0.16 0.096-0.448 0.096-0.448 0-0.8-0.32t-0.32-0.832q0-0.384 0.192-0.64t0.544-0.448 0.608-0.384 0.512-0.64 0.192-1.024-0.192-1.024-0.512-0.64-0.608-0.384-0.544-0.448-0.192-0.64q0-0.48 0.32-0.832t0.8-0.32q0.288 0 0.448 0.096 1.248 0.48 2.016 1.664t0.768 2.528z"></path>
               </svg>
             </div>
           </div>
-          <!--
-          <div class="avp-volume-muted">
-            <div class="avp-icon avp-volume-muted-icon">
+          <div class="avp-volume-muted" v-else>
+            <div class="avp-icon avp-volume-muted-icon" @click="onToggleAudio(-1)">
               <svg xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 21 32">
                 <path
                     d="M13.728 6.272v19.456q0 0.448-0.352 0.8t-0.8 0.32-0.8-0.32l-5.952-5.952h-4.672q-0.48 0-0.8-0.352t-0.352-0.8v-6.848q0-0.48 0.352-0.8t0.8-0.352h4.672l5.952-5.952q0.32-0.32 0.8-0.32t0.8 0.32 0.352 0.8z"></path>
               </svg>
             </div>
           </div>
-          -->
 
           <div class="avp-time">
             <span class="avp-ptime">{{ showFormatTime(control.currentTime) }}</span>
@@ -189,6 +186,7 @@ export default {
         duration: 0,
         currentTime: 0,
         playerStatus: 0,// 参考：AVPlayerStatus
+        muted: false,// 是否静音
         progress: 0,// 播放进度
         tmpSeeking: 0,// 拖拽进度，是临时效果
         show: true,
@@ -274,12 +272,13 @@ export default {
         // console.log('[addEventListener] progress', pts)
       })
       this.avp.on('time', (currentTime) => {
-        this.control.currentTime = Number(currentTime) / 1000
-        this.control.progress = (100 * this.control.currentTime / this.control.duration).toFixed(2)
-        if (this.$refs.avpBarWrap) {
-
-          this.control.forwardLeftOffset = Math.floor(this.control.currentTime * this.$refs.avpBarWrap.offsetWidth / this.control.duration)
-        }
+        // this.control.currentTime = Number(currentTime) / 1000
+        // this.control.progress = (100 * this.control.currentTime / this.control.duration).toFixed(2)
+        // if (this.$refs.avpBarWrap) {
+        //
+        //   this.control.forwardLeftOffset = Math.floor(this.control.currentTime * this.$refs.avpBarWrap.offsetWidth / this.control.duration)
+        // }
+        this.updateCurrentTime(currentTime)
       })
 
       this.avp.on('timeout', (pts) => {
@@ -302,19 +301,39 @@ export default {
       }, 1000)
 
     },
+    updateCurrentTime(currentTime) {
+      this.control.currentTime = Number(currentTime) / 1000
+      this.control.progress = (100 * this.control.currentTime / this.control.duration).toFixed(2)
+      console.log('[this.control.progress]', this.control.progress)
+      if (this.$refs.avpBarWrap) {
+
+        this.control.forwardLeftOffset = Math.floor(this.control.currentTime * this.$refs.avpBarWrap.offsetWidth / this.control.duration)
+      }
+    },
     onTogglePlay() {
       // console.log('[onTogglePlay]', this.avp)
       if (!this.isAvpReady()) {
         return
       }
       if (this.avp.getStatus() === this.AVPlayerStatus.PLAYED) {
-        this.avp.pause()
+        this.avp.pause().finally(() => {
+          this.control.playerStatus = this.avp.getStatus()
+        })
       } else {
-        this.avp.play()
+        this.avp.play().finally(() => {
+          this.control.playerStatus = this.avp.getStatus()
+        })
       }
-      setTimeout(() => {
-        this.control.playerStatus = this.avp.getStatus()
-      }, 100)
+    },
+    onToggleAudio(v) {
+      console.log('[getVolume]', this.avp.getVolume())
+      if (this.avp.getVolume() > 0) {
+        this.avp.setVolume(0)
+        this.control.muted = true
+      } else {
+        this.avp.setVolume(3.3 / 100 * 70)
+        this.control.muted = false
+      }
     },
     loadAvPlayer() {
       if (!this.source || !this.source.url) {
@@ -527,10 +546,12 @@ export default {
     onSeeking(seconds) {
       console.log('[onSeeking]', seconds)
       this.control.playerStatus = this.AVPlayerStatus.SEEKING
-      this.avp.seek(BigInt(Number(seconds)) * 1000n).then(() => {
-        this.control.playerStatus = this.avp.getStatus()
-        console.log('[OK]', typeof this.control.playerStatus, this.control.playerStatus)
-        //       console.log('[control.playerStatus', { b: this.control.playerStatus })
+      const seek = BigInt(Number(seconds)) * 1000n
+      this.updateCurrentTime(seek)
+      this.avp.seek(seek).then(() => {
+        this.avp.play().finally(() => {
+          this.control.playerStatus = this.avp.getStatus()
+        })
       }).catch(err => {
         console.log('[errX]', err)
       })
@@ -618,6 +639,7 @@ export default {
 
   .avp-bar-wrap {
     margin: 0 10px;
+    padding: 8px 0;
     cursor: pointer;
     position: relative;
 
