@@ -1,12 +1,12 @@
 <template>
 
-  <div class="avp-container">
+  <div class="avp-container" @mouseover="onShowProgressBar">
 
     <!-- 播放区域 -->
     <div class="avp-canvas flex1" ref="avplayerRef"></div>
 
     <!-- 控制区域 -->
-    <div class="avp-control-wrap">
+    <div class="avp-control-wrap" v-if="control.show">
       <div class="avp-control-mask" @click="onSwitchPlayStatus">
         <n-spin v-if="loading" size="large" />
       </div>
@@ -95,7 +95,7 @@ const control = ref({
   playerStatus: 0,// 参考：AVPlayerStatus
   muted: false,// 是否静音
   progress: 0,// 播放进度，暂时不用
-  show: true,
+  show: false,
   fullScreen: false,
 })
 
@@ -106,8 +106,10 @@ const loadingText = ref(null)
 const loading = ref(true)
 let throttleWindowResizeTimer = null
 let throttleUpdateProgressTimer = null
+let throttleShowProgressBarTimer = null
 
 const onMountedHandler = () => {
+  onShowProgressBar()
   registerWindowResizeEventHandler()
   loadAvplayer()
 }
@@ -440,6 +442,16 @@ const onBeforeUnmountHandler = () => {
       avplayer.value = null
     })
   }
+}
+
+const onShowProgressBar = () => {
+  control.value.show = true
+  if (throttleShowProgressBarTimer) {
+    clearTimeout(throttleShowProgressBarTimer)
+  }
+  throttleShowProgressBarTimer = setTimeout(() => {
+    control.value.show = false
+  }, 8000)
 }
 
 onMounted(onMountedHandler)
