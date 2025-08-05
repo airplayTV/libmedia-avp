@@ -1,25 +1,24 @@
 <template>
 
-  <div style="position: relative;display: flex; flex: 1; border: 1px solid rebeccapurple;">
+  <div class="avp-container">
 
     <!-- 播放区域 -->
-    <div style="display: flex;flex: 1; background-color: #000000;" ref="avplayerRef"></div>
+    <div class="avp-canvas flex1" ref="avplayerRef"></div>
 
     <!-- 控制区域 -->
-    <div
-        style="position: absolute; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; ">
-      <div style="flex: 1; display: flex ; justify-content: center " @click="onSwitchPlayStatus">
+    <div class="avp-control-wrap">
+      <div class="avp-control-mask" @click="onSwitchPlayStatus">
         <n-spin v-if="loading" size="large" />
       </div>
 
-      <div style="padding: 0px 10px">
+      <div class="avp-slider">
         <n-slider
             v-model:value="control.currentTime"
             :max="control.duration"
             :format-tooltip="formatVideoProgress"
             @update-value="onUpdateProgress" />
       </div>
-      <div style="display: flex;flex-direction: row; justify-content: space-between; padding: 10px 10px">
+      <div class="avp-control-bar">
         <n-space class="color-white">
           <n-icon
               size="28"
@@ -28,8 +27,8 @@
               :component="Pause12Filled" />
           <n-icon size="28" v-else :component="Play32Filled" @click="videoPlay" />
 
-          <n-icon size="28" v-if="control.muted" :component="SpeakerMute48Filled" />
-          <n-icon size="28" v-else :component="Speaker248Filled" />
+          <n-icon size="28" v-if="control.muted" :component="SpeakerMute48Filled" @click="onVideoUnMute" />
+          <n-icon size="28" v-else :component="Speaker248Filled" @click="onVideoMute" />
 
           <n-text class="color-white">
             {{ formatSecondsReadable(control.currentTime) }} / {{ formatSecondsReadable(control.duration) }}
@@ -50,7 +49,7 @@
 
 <script setup>
 
-import {onMounted, ref} from "vue";
+import {onBeforeUnmount, onMounted, ref} from "vue";
 import {NIcon, NSlider, NSpace, NSpin, NText} from 'naive-ui'
 import {
   FullScreenMaximize24Filled,
@@ -96,10 +95,7 @@ const control = ref({
   playerStatus: 0,// 参考：AVPlayerStatus
   muted: false,// 是否静音
   progress: 0,// 播放进度，暂时不用
-  tmpSeeking: 0,// 拖拽进度，是临时效果
   show: true,
-  forwardLeftOffset: 0,
-  forwardSeconds: 0,
   fullScreen: false,
 })
 
@@ -127,7 +123,7 @@ const registerWindowResizeEventHandler = () => {
   }
 }
 
-const loadAvplayer = () => {
+const loadAvplayer = async () => {
   console.log('[props]', props.config)
   console.log('[avplayerRef]', avplayerRef.value)
 
@@ -277,6 +273,12 @@ const loadAvplayer = () => {
       jitterBufferMin: 1,
       lowLatency: true
     })
+  } else {
+    await avplayer.value.stop()
+    control.value.currentTime = 0
+    control.value.duration = 0
+    control.value.playerStatus = avpStatus.STOPPED
+    console.log('[stop....]')//
   }
 
   avplayer.value.setRenderMode(renderMode.FIT)
@@ -395,10 +397,19 @@ const onSwitchPlayStatus = () => {
   }
 }
 
+const onVideoUnMute = () => {
+  avplayer.value.setVolume(3.3 / 100 * 80)
+  control.value.muted = false
+}
+
+const onVideoMute = () => {
+  avplayer.value.setVolume(0)
+  control.value.muted = true
+}
+
 const onRequestFullScreen = () => {
   avplayer.value.enterFullscreen()
 }
-
 
 const formatVideoProgress = (v) => {
   return formatSecondsReadable(control.value.currentTime)
@@ -423,7 +434,16 @@ const formatSecondsReadable = (seconds) => {
   return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
 }
 
+const onBeforeUnmountHandler = () => {
+  if (avplayer.value) {
+    avplayer.value.stop().then(() => {
+      avplayer.value = null
+    })
+  }
+}
+
 onMounted(onMountedHandler)
+onBeforeUnmount(onBeforeUnmountHandler)
 
 </script>
 
@@ -431,4 +451,45 @@ onMounted(onMountedHandler)
 .color-white {
   color: #ffffff;
 }
+
+.avp-container {
+  position: relative;
+  display: flex;
+  flex: 1;
+  background-color: #000000;
+
+
+  .avp-canvas {
+    display: flex;
+    flex: 1;
+  }
+
+  .avp-control-wrap {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+
+    .avp-control-mask {
+      flex: 1;
+      display: flex;
+      justify-content: center;
+    }
+
+    .avp-slider {
+      padding: 0 10px;
+    }
+
+    .avp-control-bar {
+      display: flex;
+      flex-direction: row;
+      justify-content: space-between;
+      padding: 10px 10px;
+    }
+
+  }
+}
+
 </style>
