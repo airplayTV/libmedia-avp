@@ -1,5 +1,5 @@
 <template>
-  <avp-control v-if="videoConfig" :config="videoConfig" />
+  <avp-control :key="videoConfig" :config="videoConfig" />
 </template>
 
 <script setup>
@@ -11,11 +11,14 @@ let route = useRoute()
 const videoConfig = ref(null)
 
 const onBeforeMountHandler = () => {
-  console.log('[参数说明]', { query: { config: btoa(JSON.stringify({ url: encodeURIComponent('https://example.com/file中文.m3u8') })), } })
-  console.log('[query.config 生成步骤]', `const config = btoa(JSON.stringify({ url: encodeURIComponent('https://example.com/file中文.m3u8') }))`)
+  console.log('[参数说明]', {
+    query: {
+      config: btoa(JSON.stringify({ url: encodeURIComponent('https://example.com/file中文.m3u8') })),
+    },
+    'query.config=': `btoa(JSON.stringify({ url: encodeURIComponent('https://example.com/file中文.m3u8') }))`
+  })
 
   if (!route.query.config) {
-    console.log('[没有播放配置]')
     return
   }
   try {

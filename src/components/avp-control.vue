@@ -127,7 +127,7 @@ const registerWindowResizeEventHandler = () => {
 }
 
 const loadAvplayer = async () => {
-  console.log('[props]', props.config)
+  console.log('[播放配置]', props.config)
 
   if (!props.config || !props.config.url) {
     showLoading('没有播放数据')
