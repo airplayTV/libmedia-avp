@@ -293,11 +293,12 @@ const loadAvplayer = async () => {
     // 更新进度条
     control.value.duration = Number(avplayer.value.getDuration())
     Promise.all([avplayer.value.getVideoList(), avplayer.value.getAudioList(), avplayer.value.getSubtitleList()]).then((data) => {
-      avplayer.value.play({ audio: true, video: true, subtitle: true }).then(() => {
-        control.value.playerStatus = avplayer.value.getStatus()
-      }).catch(err => {
-        console.log('[avp.play.error]', err)
-      })
+      // TODO FIXME 不能自动播放，不然没声音
+      // avplayer.value.play({ audio: true, video: true, subtitle: true }).then(() => {
+      //   control.value.playerStatus = avplayer.value.getStatus()
+      // }).catch(err => {
+      //   console.log('[avp.play.error]', err)
+      // })
     })
   }).catch(err => {
     console.log('[资源不存在加载失败]', err)
