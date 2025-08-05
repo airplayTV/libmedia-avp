@@ -7,6 +7,9 @@
 
     <!-- 控制区域 -->
     <div class="avp-control-wrap">
+      <div class="color-white padding-10px" v-if="control.show">
+        <div v-if="config.name">{{ config.name }}</div>
+      </div>
       <div class="avp-control-mask" @click="onSwitchPlayStatus">
         <n-spin v-if="loading" size="large" />
         <div v-if="loadingText" class="color-white" style="margin-top: 20px">
@@ -135,6 +138,10 @@ const loadAvplayer = async () => {
     showLoading('没有播放数据')
     return
   }
+  if (props.config.name) {
+    props.config.name = decodeURIComponent(props.config.name)
+  }
+
   AVPlayer.setLogLevel(logMode.ERROR)
 
   if (!AVPlayer.audioContext) {
@@ -473,6 +480,13 @@ onBeforeUnmount(onBeforeUnmountHandler)
   flex: 1;
   background-color: #000000;
 
+  .padding-10px {
+    padding: 10px;
+  }
+
+  .padding-20px {
+    padding: 20px;
+  }
 
   .avp-canvas {
     display: flex;
