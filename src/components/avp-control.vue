@@ -9,7 +9,9 @@
     <div class="avp-control-wrap">
       <div class="avp-control-mask" @click="onSwitchPlayStatus">
         <n-spin v-if="loading" size="large" />
-        <div class="color-white" style="margin-top: 20px">{{ loadingText }}</div>
+        <div v-if="loadingText" class="color-white" style="margin-top: 20px">
+          {{ loadingText }}
+        </div>
       </div>
 
       <div class="avp-slider" v-if="control.show">
