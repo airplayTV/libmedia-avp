@@ -3,43 +3,36 @@
 </template>
 
 <script setup>
-import {onBeforeMount, ref} from "vue";
+import {onMounted, ref} from "vue";
 import {useRoute} from "vue-router";
 import AvpControl from "@/components/avp-control.vue";
 
 let route = useRoute()
 const videoConfig = ref(null)
 
-const onBeforeMountHandler = () => {
+const onMountedHandler = () => {
   console.log('[参数说明]', { query: { config: btoa(JSON.stringify({ url: encodeURIComponent('https://example.com/file中文.m3u8') })), } })
   console.log('[query.config 生成步骤]', `const config = btoa(JSON.stringify({ url: encodeURIComponent('https://example.com/file中文.m3u8') }))`)
 
-  // console.log('[debug]', btoa(JSON.stringify({
-  //   url: 'https://h5.chinaguandan.com/files/tmp/yixueqianchi.m3u8',
-  //   name: encodeURIComponent('隋文帝发'),
-  // })))
-
   if (!route.query.config) {
-    console.log('[播放参数错误]', route.query)
+    console.log('[没有播放配置]')
     return
   }
   try {
-    const videoConfig = JSON.parse(atob(route.query.config))
-    if (!videoConfig.url) {
-      console.log('[播放地址错误]', videoConfig)
+    const tmpConfig = JSON.parse(atob(route.query.config))
+    if (!tmpConfig.url) {
+      console.log('[播放配置解析失败]', tmpConfig)
       return
     }
-    videoConfig.url = decodeURIComponent(videoConfig.url)
-
-    console.log('[videoConfig]', videoConfig)
-
+    tmpConfig.url = decodeURIComponent(tmpConfig.url)
+    videoConfig.value = tmpConfig
   } catch (e) {
     console.log('[播放参数解析失败]', e)
   }
 
 }
 
-onBeforeMount(onBeforeMountHandler)
+onMounted(onMountedHandler)
 
 </script>
 

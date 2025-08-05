@@ -326,14 +326,16 @@ export default {
         })
       }
     },
+    updateVolume(percent = 70) {
+      this.avp.setVolume(3.3 / 100 * percent)
+      this.control.muted = (percent <= 0)
+    },
     onToggleAudio(v) {
       console.log('[getVolume]', this.avp.getVolume())
       if (this.avp.getVolume() > 0) {
-        this.avp.setVolume(0)
-        this.control.muted = true
+        this.updateVolume(0)
       } else {
-        this.avp.setVolume(3.3 / 100 * 70)
-        this.control.muted = false
+        this.updateVolume(70)
       }
     },
     loadAvPlayer() {
