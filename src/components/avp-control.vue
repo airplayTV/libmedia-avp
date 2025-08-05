@@ -309,7 +309,6 @@ const loadAvplayer = async () => {
     }, 8000)
   })
 
-  console.log('[avplayer.value]', avplayer.value)
 }
 
 const registerAvpEventListener = () => {
@@ -395,6 +394,7 @@ const videoStop = () => {
 }
 
 const onSwitchPlayStatus = () => {
+  control.value.show = true
   if ([avpStatus.PLAYING, avpStatus.PLAYED].includes(control.value.playerStatus)) {
     videoStop()
   } else {
