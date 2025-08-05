@@ -6,19 +6,20 @@
     <div class="avp-canvas flex1" ref="avplayerRef"></div>
 
     <!-- 控制区域 -->
-    <div class="avp-control-wrap" v-if="control.show">
+    <div class="avp-control-wrap">
       <div class="avp-control-mask" @click="onSwitchPlayStatus">
         <n-spin v-if="loading" size="large" />
+        <div class="color-white" style="margin-top: 20px">{{ loadingText }}</div>
       </div>
 
-      <div class="avp-slider">
+      <div class="avp-slider" v-if="control.show">
         <n-slider
             v-model:value="control.currentTime"
             :max="control.duration"
             :format-tooltip="formatVideoProgress"
             @update-value="onUpdateProgress" />
       </div>
-      <div class="avp-control-bar">
+      <div class="avp-control-bar" v-if="control.show">
         <n-space class="color-white">
           <n-icon
               size="28"
@@ -127,10 +128,9 @@ const registerWindowResizeEventHandler = () => {
 
 const loadAvplayer = async () => {
   console.log('[props]', props.config)
-  console.log('[avplayerRef]', avplayerRef.value)
 
   if (!props.config || !props.config.url) {
-    console.log('[没有播放数据]',)
+    showLoading('没有播放数据')
     return
   }
   AVPlayer.setLogLevel(logMode.ERROR)
@@ -488,6 +488,8 @@ onBeforeUnmount(onBeforeUnmountHandler)
       flex: 1;
       display: flex;
       justify-content: center;
+      flex-direction: column;
+      align-items: center;
     }
 
     .avp-slider {
