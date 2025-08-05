@@ -7,9 +7,11 @@
 
     <!-- 控制区域 -->
     <div class="avp-control-wrap">
+
       <div class="color-white padding-10px" v-if="control.show">
         <div v-if="config.name">{{ config.name }}</div>
       </div>
+
       <div class="avp-control-mask" @click="onSwitchPlayStatus">
         <n-spin v-if="loading" size="large" />
         <div v-if="loadingText" class="color-white" style="margin-top: 20px">
@@ -24,6 +26,7 @@
             :format-tooltip="formatVideoProgress"
             @update-value="onUpdateProgress" />
       </div>
+
       <div class="avp-control-bar" v-if="control.show">
         <n-space class="color-white">
           <n-icon
