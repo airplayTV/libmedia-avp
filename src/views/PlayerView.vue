@@ -1,16 +1,16 @@
 <template>
-  <avp-control v-if="videoConfig" :source="videoConfig" />
+  <avp-control v-if="videoConfig" :config="videoConfig" />
 </template>
 
 <script setup>
-import {onMounted, ref} from "vue";
+import {onBeforeMount, ref} from "vue";
 import {useRoute} from "vue-router";
 import AvpControl from "@/components/avp-control.vue";
 
 let route = useRoute()
 const videoConfig = ref(null)
 
-const onMountedHandler = () => {
+const onBeforeMountHandler = () => {
   console.log('[参数说明]', { query: { config: btoa(JSON.stringify({ url: encodeURIComponent('https://example.com/file中文.m3u8') })), } })
   console.log('[query.config 生成步骤]', `const config = btoa(JSON.stringify({ url: encodeURIComponent('https://example.com/file中文.m3u8') }))`)
 
@@ -32,7 +32,8 @@ const onMountedHandler = () => {
 
 }
 
-onMounted(onMountedHandler)
+// onMounted(onMountedHandler)
+onBeforeMount(onBeforeMountHandler)
 
 </script>
 
