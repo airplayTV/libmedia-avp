@@ -37,7 +37,20 @@
           <n-icon size="28" v-else :component="Play32Filled" @click="videoPlay" />
 
           <n-icon size="28" v-if="control.muted" :component="SpeakerMute48Filled" @click="onVideoUnMute" />
-          <n-icon size="28" v-else :component="Speaker248Filled" @click="onVideoMute" />
+          <div
+              v-else
+              class="volume-wrap"
+              @mouseover="config.showVolumeSlider=true"
+              @mouseout="config.showVolumeSlider=false">
+            <n-icon size="28" :component="Speaker248Filled" @click="onVideoMute" />
+
+            <n-slider
+                class="volume-slider"
+                v-show="config.showVolumeSlider"
+                v-model:value="control.volume"
+                :max="100"
+                @update-value="onUpdateVolume" />
+          </div>
 
           <n-text class="color-white">
             {{ formatSecondsReadable(control.currentTime) }} / {{ formatSecondsReadable(control.duration) }}
@@ -105,6 +118,8 @@ const control = ref({
   muted: false,// 是否静音
   progress: 0,// 播放进度，暂时不用
   show: false,
+  volume: 70,// [0,100] 百分比
+  showVolumeSlider: false,
   fullScreen: false,
 })
 
@@ -381,6 +396,10 @@ const onUpdateProgress = (p) => {
   }, 500)
 }
 
+const onUpdateVolume = () => {
+  console.log('[onUpdateVolume]', control.value.volume)
+  avplayer.value.setVolume(3.3 / 100 * control.value.volume)
+}
 
 const videoSeeking = () => {
   avplayer.value.seek(BigInt(control.value.currentTime)).then(() => {
@@ -410,6 +429,7 @@ const onSwitchPlayStatus = () => {
   } else {
     videoPlay()
   }
+  control.value.showVolumeSlider = false
 }
 
 const onVideoUnMute = () => {
@@ -482,6 +502,7 @@ onBeforeUnmount(onBeforeUnmountHandler)
   display: flex;
   flex: 1;
   background-color: #000000;
+  overflow: hidden;
 
   .padding-10px {
     padding: 10px;
@@ -521,9 +542,27 @@ onBeforeUnmount(onBeforeUnmountHandler)
       flex-direction: row;
       justify-content: space-between;
       padding: 10px 10px;
+
+      .volume-wrap {
+        position: relative;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+
+      .volume-slider {
+        width: 80px;
+        padding-left: 6px;
+      }
+
     }
 
   }
+
+  .n-icon {
+    cursor: pointer;
+  }
+
 }
 
 </style>
