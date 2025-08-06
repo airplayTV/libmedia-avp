@@ -9,7 +9,7 @@
     <div class="avp-control-wrap">
 
       <div class="color-white padding-10px" v-if="control.show">
-        <div v-if="config.name">{{ config.name }}</div>
+        <div v-if="config && config.name">{{ config.name }}</div>
       </div>
 
       <div class="avp-control-mask" @click="onSwitchPlayStatus">
@@ -40,13 +40,13 @@
           <div
               v-else
               class="volume-wrap"
-              @mouseover="config.showVolumeSlider=true"
-              @mouseout="config.showVolumeSlider=false">
+              @mouseover="control.showVolumeSlider=true"
+              @mouseout="control.showVolumeSlider=false">
             <n-icon size="28" :component="Speaker248Filled" @click="onVideoMute" />
 
             <n-slider
                 class="volume-slider"
-                v-show="config.showVolumeSlider"
+                v-show="control.showVolumeSlider"
                 v-model:value="control.volume"
                 :max="100"
                 @update-value="onUpdateVolume" />
@@ -163,6 +163,7 @@ const loadAvplayer = async () => {
   AVPlayer.setLogLevel(logMode.ERROR)
 
   if (!AVPlayer.audioContext) {
+    console.log('[new AudioContext]')
     AVPlayer.audioContext = new AudioContext()
     AVPlayer.audioContext.createBufferSource()
   }
@@ -397,8 +398,7 @@ const onUpdateProgress = (p) => {
 }
 
 const onUpdateVolume = () => {
-  console.log('[onUpdateVolume]', control.value.volume)
-  avplayer.value.setVolume(3.3 / 100 * control.value.volume)
+  avplayer.value?.setVolume(3.3 / 100 * control.value.volume)
 }
 
 const videoSeeking = () => {
@@ -409,14 +409,22 @@ const videoSeeking = () => {
 }
 
 const videoPlay = () => {
-  avplayer.value.play({ audio: true, video: true, subtitle: true }).then(() => {
+  avplayer.value?.play({ audio: true, video: true, subtitle: true }).then(() => {
+    const audioStreams = avplayer.value.getStreams().filter((s => s.mediaType === 'Audio'))
+    const videoStreams = avplayer.value.getStreams().filter((s => s.mediaType === 'Video'))
+    console.log('[audioStreams]', audioStreams)
+    console.log('[videoStreams]', videoStreams)
+    console.log('[getVolume]', avplayer.value.getVolume())
+
+  }).catch(err => {
+    console.log('[avplayer.value.play]', err)
   }).finally(() => {
     control.value.playerStatus = avplayer.value.getStatus()
   })
 }
 
 const videoStop = () => {
-  avplayer.value.pause().then(() => {
+  avplayer.value?.pause().then(() => {
   }).finally(() => {
     control.value.playerStatus = avplayer.value.getStatus()
   })
@@ -433,12 +441,12 @@ const onSwitchPlayStatus = () => {
 }
 
 const onVideoUnMute = () => {
-  avplayer.value.setVolume(3.3 / 100 * 80)
+  avplayer.value?.setVolume(3.3 / 100 * 80)
   control.value.muted = false
 }
 
 const onVideoMute = () => {
-  avplayer.value.setVolume(0)
+  avplayer.value?.setVolume(0)
   control.value.muted = true
 }
 
