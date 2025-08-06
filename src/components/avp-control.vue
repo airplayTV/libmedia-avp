@@ -80,6 +80,7 @@ import {
   Speaker248Filled,
   SpeakerMute48Filled
 } from '@vicons/fluent'
+import {addTimeline, findTimeline, updateTimeline} from "@/helpers/db.js";
 
 const props = defineProps(['config'])
 
@@ -131,6 +132,7 @@ const loading = ref(true)
 let throttleWindowResizeTimer = null
 let throttleUpdateProgressTimer = null
 let throttleShowProgressBarTimer = null
+let historyTimeline = false// 播放历史信息
 
 const onMountedHandler = () => {
   onShowProgressBar()
@@ -149,6 +151,18 @@ const registerWindowResizeEventHandler = () => {
   }
 }
 
+const parseConfig = () => {
+  if (props.config.name) {
+    props.config.name = decodeURIComponent(props.config.name)
+  }
+  if (props.config.id) {
+    props.config.id = props.config.id.substring(0, 32)
+  }
+  if (props.config.name) {
+    props.config.name = props.config.name.substring(0, 32)
+  }
+}
+
 const loadAvplayer = async () => {
   console.log('[播放配置]', props.config)
 
@@ -156,15 +170,15 @@ const loadAvplayer = async () => {
     showLoading('没有播放数据')
     return
   }
-  if (props.config.name) {
-    props.config.name = decodeURIComponent(props.config.name)
-  }
+  parseConfig()
 
   try {
     console.log('[avpCtx]', { avp: AVPlayer, win: window.AVPlayer })
   } catch (e) {
     console.log('[avpCtx]', { win: window.AVPlayer })
   }
+
+  historyTimeline = false
 
   window.AVPlayer.setLogLevel(logMode.ERROR)
 
@@ -331,14 +345,12 @@ const loadAvplayer = async () => {
       // }).catch(err => {
       //   console.log('[avp.play.error]', err)
       // })
+      seekTimelineWarp()
     })
   }).catch(err => {
     console.log('[资源不存在加载失败]', err)
     showLoading(`视频加载失败：${err}, ${props.config.url}`)
   }).finally(() => {
-    setTimeout(() => {
-      // this.control.show = false
-    }, 8000)
   })
 
 }
@@ -361,6 +373,7 @@ const registerAvpEventListener = () => {
   avplayer.value.on('time', (currentTime) => {
     // console.log('[time]', currentTime)
     control.value.currentTime = Number(currentTime)
+    updateTimelineWarp()
   })
 
   avplayer.value.on('timeout', (pts) => {
@@ -497,8 +510,50 @@ const onShowProgressBar = () => {
     clearTimeout(throttleShowProgressBarTimer)
   }
   throttleShowProgressBarTimer = setTimeout(() => {
-    control.value.show = false
+    if ([avpStatus.PLAYING, avpStatus.PLAYED].includes(control.value.playerStatus)) {
+      control.value.show = false
+    }
   }, 8000)
+}
+
+const updateTimelineWarp = async () => {
+  if (!props.config.id) {
+    return
+  }
+  if (!historyTimeline) {
+    historyTimeline = await findTimeline(props.config.id)
+  }
+  if (!historyTimeline) {
+    await addTimeline({
+      key: props.config.id,
+      name: props.config.name,
+      duration: control.value.duration,
+      lastTime: control.value.currentTime,
+      updated_at: Date.now(),
+    })
+  } else {
+    await updateTimeline(historyTimeline.id, {
+      duration: control.value.duration,
+      lastTime: control.value.currentTime,
+      updated_at: Date.now(),
+    })
+  }
+}
+
+const seekTimelineWarp = async () => {
+  if (!props.config.id) {
+    return
+  }
+  const find = await findTimeline(props.config.id)
+  if (!find) {
+    return
+  }
+  if (find.lastTime) {
+    avplayer.value.seek(BigInt(find.lastTime)).then(resp => {
+      control.value.currentTime = find.lastTime
+    }).catch(err => {
+    })
+  }
 }
 
 onMounted(onMountedHandler)
