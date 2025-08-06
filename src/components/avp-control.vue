@@ -162,12 +162,12 @@ const loadAvplayer = async () => {
 
   console.log('[avpCtx]', { avp: AVPlayer, win: window.AVPlayer })
 
-  AVPlayer.setLogLevel(logMode.ERROR)
+  window.AVPlayer.setLogLevel(logMode.ERROR)
 
-  if (!AVPlayer.audioContext) {
+  if (!window.AVPlayer.audioContext) {
     console.log('[new AudioContext]')
-    AVPlayer.audioContext = new AudioContext()
-    AVPlayer.audioContext.createBufferSource()
+    window.AVPlayer.audioContext = new AudioContext()
+    window.AVPlayer.audioContext.createBufferSource()
   }
 
   if (!avplayer.value) {
