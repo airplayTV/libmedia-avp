@@ -422,6 +422,7 @@ const onUpdateVolume = () => {
 
 const videoSeeking = () => {
   avplayer.value.seek(BigInt(control.value.currentTime)).then(() => {
+    videoPlay()
   }).finally(() => {
     loading.value = false
   })
