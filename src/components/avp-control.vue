@@ -144,7 +144,7 @@ const registerWindowResizeEventHandler = () => {
       clearTimeout(throttleWindowResizeTimer)
     }
     throttleWindowResizeTimer = setTimeout(() => {
-      avplayer.value.resize(value.target.innerWidth, value.target.innerHeight)
+      avplayer.value?.resize(value.target.innerWidth, value.target.innerHeight)
     }, 50)
   }
 }
@@ -160,7 +160,11 @@ const loadAvplayer = async () => {
     props.config.name = decodeURIComponent(props.config.name)
   }
 
-  console.log('[avpCtx]', { avp: AVPlayer, win: window.AVPlayer })
+  try {
+    console.log('[avpCtx]', { avp: AVPlayer, win: window.AVPlayer })
+  } catch (e) {
+    console.log('[avpCtx]', { win: window.AVPlayer })
+  }
 
   window.AVPlayer.setLogLevel(logMode.ERROR)
 
