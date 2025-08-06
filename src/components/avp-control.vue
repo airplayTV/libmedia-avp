@@ -390,7 +390,7 @@ const videoSeeking = () => {
 }
 
 const videoPlay = () => {
-  avplayer.value.play().then(() => {
+  avplayer.value.play({ audio: true, video: true, subtitle: true }).then(() => {
   }).finally(() => {
     control.value.playerStatus = avplayer.value.getStatus()
   })
