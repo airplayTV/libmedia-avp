@@ -160,6 +160,8 @@ const loadAvplayer = async () => {
     props.config.name = decodeURIComponent(props.config.name)
   }
 
+  console.log('[avpCtx]', { avp: AVPlayer, win: window.AVPlayer })
+
   AVPlayer.setLogLevel(logMode.ERROR)
 
   if (!AVPlayer.audioContext) {
