@@ -81,6 +81,7 @@ import {
   SpeakerMute48Filled
 } from '@vicons/fluent'
 import {addTimeline, findTimeline, updateTimeline} from "@/helpers/db.js";
+import unmuteAudio from "@/helpers/unmute.js";
 
 const props = defineProps(['config'])
 
@@ -135,6 +136,9 @@ let throttleShowProgressBarTimer = null
 let historyTimeline = false// 播放历史信息
 
 const onMountedHandler = () => {
+  // Call once, as early as possible in the page lifecycle
+  unmuteAudio()
+
   onShowProgressBar()
   registerWindowResizeEventHandler()
   loadAvplayer()
