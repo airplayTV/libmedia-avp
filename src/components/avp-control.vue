@@ -168,13 +168,12 @@ const parseConfig = () => {
 }
 
 const loadAvplayer = async () => {
-  console.log('[播放配置]', props.config)
-
   if (!props.config || !props.config.url) {
     showLoading('没有播放数据')
     return
   }
   parseConfig()
+  console.log('[播放配置]', JSON.parse(JSON.stringify(props.config)))
 
   try {
     console.log('[avpCtx]', { avp: AVPlayer, win: window.AVPlayer })
@@ -184,7 +183,7 @@ const loadAvplayer = async () => {
 
   historyTimeline = false
 
-  window.AVPlayer.setLogLevel(logMode.ERROR)
+  window.AVPlayer.setLogLevel(logMode.TRACE)
 
   if (!window.AVPlayer.audioContext) {
     console.log('[new AudioContext]')
@@ -320,7 +319,9 @@ const loadAvplayer = async () => {
         return false
       },
       enableHardware: true,
-      enableWebGPU: false,
+      enableWebCodecs: false,
+      enableWebGPU: true,
+      enableWorker: false,
       loop: false,
       enableJitterBuffer: true,
       jitterBufferMax: 4,
@@ -339,16 +340,12 @@ const loadAvplayer = async () => {
 
   registerAvpEventListener()
 
-  avplayer.value.load(props.config.url).then(() => {
+  avplayer.value.load(props.config.url, { isLive: false }).then(() => {
     // 更新进度条
     control.value.duration = Number(avplayer.value.getDuration())
     Promise.all([avplayer.value.getVideoList(), avplayer.value.getAudioList(), avplayer.value.getSubtitleList()]).then((data) => {
       // TODO FIXME 不能自动播放，不然没声音
-      // avplayer.value.play({ audio: true, video: true, subtitle: true }).then(() => {
-      //   control.value.playerStatus = avplayer.value.getStatus()
-      // }).catch(err => {
-      //   console.log('[avp.play.error]', err)
-      // })
+      onUpdateVolume()
       seekTimelineWarp()
     })
   }).catch(err => {
@@ -416,6 +413,7 @@ const onUpdateProgress = (p) => {
   }
   throttleUpdateProgressTimer = setTimeout(() => {
     control.value.currentTime = p
+    updateTimelineWarp()
     videoSeeking()
   }, 500)
 }
@@ -433,17 +431,18 @@ const videoSeeking = () => {
 }
 
 const videoPlay = () => {
-  avplayer.value?.play({ audio: true, video: true, subtitle: true }).then(() => {
-    const audioStreams = avplayer.value.getStreams().filter((s => s.mediaType === 'Audio'))
-    const videoStreams = avplayer.value.getStreams().filter((s => s.mediaType === 'Video'))
-    console.log('[audioStreams]', audioStreams)
-    console.log('[videoStreams]', videoStreams)
-    console.log('[getVolume]', avplayer.value.getVolume())
+  loading.value = true
+  avplayer.value?.play().then(() => {
+    // const audioStreams = avplayer.value.getStreams().filter((s => s.mediaType === 'Audio'))
+    // const videoStreams = avplayer.value.getStreams().filter((s => s.mediaType === 'Video'))
+    // console.log('[audioStreams]', audioStreams)
+    // console.log('[videoStreams]', videoStreams)
 
   }).catch(err => {
     console.log('[avplayer.value.play]', err)
   }).finally(() => {
     control.value.playerStatus = avplayer.value.getStatus()
+    loading.value = false
   })
 }
 
