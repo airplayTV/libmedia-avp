@@ -5,3 +5,4 @@ export declare function updateSize(ioWriter: IOWriter, pointer: number, size: nu
 export declare function writeFtyp(ioWriter: IOWriter, context: MOVContext): void;
 export declare function writeMoov(ioWriter: IOWriter, formatContext: AVOFormatContext, movContext: MOVContext): void;
 export declare function writeMoof(ioWriter: IOWriter, formatContext: AVOFormatContext, movContext: MOVContext): void;
+export declare function writeMfra(ioWriter: IOWriter, formatContext: AVOFormatContext, movContext: MOVContext): void;

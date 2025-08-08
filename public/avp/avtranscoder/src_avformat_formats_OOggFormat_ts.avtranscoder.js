@@ -522,7 +522,7 @@ class OggsCommentPage {
     userCommentListLength;
     comments;
     constructor() {
-        this.vendorString = "v0.9.0-15-gdd5cd674";
+        this.vendorString = "v0.9.0-29-gc2ccb944";
         this.vendorStringLength = this.vendorString.length;
         this.userCommentListLength = 0;
         this.comments = new UserComment();

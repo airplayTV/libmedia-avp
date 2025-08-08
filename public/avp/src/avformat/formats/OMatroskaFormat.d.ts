@@ -3,7 +3,13 @@ import AVPacket from 'avutil/struct/avpacket';
 import OFormat from './OFormat';
 import { AVFormat } from 'avutil/avformat';
 export interface OMatroskaFormatOptions {
+    /**
+     * 是否是直播
+     */
     isLive?: boolean;
+    /**
+     * mkv 还是 webm
+     */
     docType?: string;
 }
 export default class OMatroskaFormat extends OFormat {

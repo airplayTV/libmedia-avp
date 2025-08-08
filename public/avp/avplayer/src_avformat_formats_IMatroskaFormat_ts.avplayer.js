@@ -296,15 +296,24 @@ class IMatroskaFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_8__["default"] {
                         || stream.codecpar.codecId === 94230 /* AVCodecID.AV_CODEC_ID_ASS */) {
                         const header = common_util_text__WEBPACK_IMPORTED_MODULE_35__.decode(codecPrivateData);
                         let lines = header.split(/\r?\n/);
+                        let format;
                         for (let i = 0; i < lines.length; i++) {
                             if (lines[i].trim() === '[Events]') {
+                                if (lines[i + 1] && /^Format:/.test(lines[i + 1])) {
+                                    format = lines[i + 1];
+                                }
                                 lines = lines.slice(0, i);
                                 break;
                             }
                         }
+                        if (format) {
+                            format = format.replace(/^Format:/, '');
+                            format = format.split(',').map((v) => v.trim()).filter((v) => v !== 'Start' && v !== 'End').join(', ');
+                            format = `Format: ReadOrder, ${format}`;
+                        }
                         // add the default Events Format
                         lines.push('[Events]');
-                        lines.push('Format: ReadOrder, Layer, Style, Name, MarginL, MarginR, MarginV, Effect, Text');
+                        lines.push(format || 'Format: ReadOrder, Layer, Style, Name, MarginL, MarginR, MarginV, Effect, Text');
                         codecPrivateData = common_util_text__WEBPACK_IMPORTED_MODULE_35__.encode(lines.join('\n'));
                     }
                     stream.codecpar.extradataSize = codecPrivateData.length;
@@ -410,6 +419,17 @@ class IMatroskaFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_8__["default"] {
                 if (track.default == null || track.default) {
                     stream.disposition |= 1 /* AVDisposition.DEFAULT */;
                 }
+                if (stream.codecpar.codecId === 94226 /* AVCodecID.AV_CODEC_ID_WEBVTT */) {
+                    if (track.codecId === 'D_WEBVTT/CAPTIONS') {
+                        stream.disposition |= 65536 /* AVDisposition.CAPTIONS */;
+                    }
+                    else if (track.codecId === 'D_WEBVTT/DESCRIPTIONS') {
+                        stream.disposition != 131072 /* AVDisposition.DESCRIPTIONS */;
+                    }
+                    else if (track.codecId === 'D_WEBVTT/METADATA') {
+                        stream.disposition != 262144 /* AVDisposition.METADATA */;
+                    }
+                }
                 if (track.encodings) {
                     common_util_array__WEBPACK_IMPORTED_MODULE_14__.each(track.encodings.entry, (entry) => {
                         if (entry.compression && (0,common_function_isDef__WEBPACK_IMPORTED_MODULE_36__["default"])(entry.compression.algo)) {
@@ -476,14 +496,14 @@ class IMatroskaFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_8__["default"] {
     async readHeader(formatContext) {
         const magic = await (0,_matroska_imatroska__WEBPACK_IMPORTED_MODULE_13__.readEbmlId)(formatContext, this.context.header.maxIdLength);
         if (magic !== 440786851 /* EBMLId.HEADER */) {
-            common_util_logger__WEBPACK_IMPORTED_MODULE_6__.error('not matroska format', cheap__fileName__0, 453);
+            common_util_logger__WEBPACK_IMPORTED_MODULE_6__.error('not matroska format', cheap__fileName__0, 473);
             return avutil_error__WEBPACK_IMPORTED_MODULE_7__.DATA_INVALID;
         }
         const headerSize = await (0,_matroska_imatroska__WEBPACK_IMPORTED_MODULE_13__.readVInt64)(formatContext.ioReader, this.context.header.maxSizeLength);
         this.context.header = common_util_object__WEBPACK_IMPORTED_MODULE_31__.extend(this.context.header, await (0,_matroska_imatroska__WEBPACK_IMPORTED_MODULE_13__.parseEbmlSyntax)(formatContext, headerSize, _matroska_imatroska__WEBPACK_IMPORTED_MODULE_13__.EbmlSyntaxHeader));
         const segmentId = await (0,_matroska_imatroska__WEBPACK_IMPORTED_MODULE_13__.readEbmlId)(formatContext, this.context.header.maxIdLength);
         if (segmentId !== 408125543 /* EBMLId.SEGMENT */) {
-            common_util_logger__WEBPACK_IMPORTED_MODULE_6__.error('not matroska format', cheap__fileName__0, 462);
+            common_util_logger__WEBPACK_IMPORTED_MODULE_6__.error('not matroska format', cheap__fileName__0, 482);
             return avutil_error__WEBPACK_IMPORTED_MODULE_7__.DATA_INVALID;
         }
         const segmentSize = await (0,_matroska_imatroska__WEBPACK_IMPORTED_MODULE_13__.readVInt64)(formatContext.ioReader, this.context.header.maxSizeLength);
@@ -564,7 +584,7 @@ class IMatroskaFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_8__["default"] {
             if (addition.additional?.size) {
                 if (addition.additionalId === 4 /* MATROSKABlockAddIdType.ITU_T_T35 */) {
                     // TODO handle ITU_T_T35
-                    common_util_logger__WEBPACK_IMPORTED_MODULE_6__.warn('ITU_T_T35 not support now', cheap__fileName__0, 556);
+                    common_util_logger__WEBPACK_IMPORTED_MODULE_6__.warn('ITU_T_T35 not support now', cheap__fileName__0, 576);
                 }
                 const data = (0,avutil_util_mem__WEBPACK_IMPORTED_MODULE_9__.avMalloc)(addition.additional.data.length + 8);
                 avutil_util_intwrite__WEBPACK_IMPORTED_MODULE_29__.wb64(data, BigInt(addition.additionalId >>> 0));
@@ -604,7 +624,7 @@ class IMatroskaFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_8__["default"] {
         const trackNumber = Number(BigInt.asUintN(32, await (0,_matroska_imatroska__WEBPACK_IMPORTED_MODULE_13__.readVInt64)(this.blockReader, 8)));
         const stream = (0,_matroska_function_findStreamByTrackNumber__WEBPACK_IMPORTED_MODULE_28__["default"])(formatContext.streams, trackNumber);
         if (!stream) {
-            common_util_logger__WEBPACK_IMPORTED_MODULE_6__.error(`invalid track number ${trackNumber}`, cheap__fileName__0, 606);
+            common_util_logger__WEBPACK_IMPORTED_MODULE_6__.error(`invalid track number ${trackNumber}`, cheap__fileName__0, 626);
             return avutil_error__WEBPACK_IMPORTED_MODULE_7__.EAGAIN;
         }
         const timestamp = this.blockReader.readInt16();
@@ -698,7 +718,7 @@ class IMatroskaFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_8__["default"] {
                         offset = header.length;
                         break;
                     default:
-                        common_util_logger__WEBPACK_IMPORTED_MODULE_6__.fatal(`not support compression stream, algo: ${compression.compression.algo}`, cheap__fileName__0, 716);
+                        common_util_logger__WEBPACK_IMPORTED_MODULE_6__.fatal(`not support compression stream, algo: ${compression.compression.algo}`, cheap__fileName__0, 736);
                 }
             }
             cheap_ctypeEnumWrite__WEBPACK_IMPORTED_MODULE_3__.CTypeEnumWrite[17](avpacket + 56, basePos + this.blockReader.getPos());
@@ -849,7 +869,7 @@ class IMatroskaFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_8__["default"] {
         catch (error) {
             if (formatContext.ioReader.error !== -1048576 /* IOError.END */
                 && formatContext.ioReader.error !== -1048572 /* IOError.ABORT */) {
-                common_util_logger__WEBPACK_IMPORTED_MODULE_6__.error(`read packet error, ${error}`, cheap__fileName__0, 900);
+                common_util_logger__WEBPACK_IMPORTED_MODULE_6__.error(`read packet error, ${error}`, cheap__fileName__0, 920);
                 return avutil_error__WEBPACK_IMPORTED_MODULE_7__.DATA_INVALID;
             }
             return formatContext.ioReader.error;
@@ -2064,6 +2084,9 @@ async function parseEbmlSyntax(formatContext, size, syntax, ebml = {}, stopId = 
                     break;
                 case 7 /* EbmlType.STRING */:
                     value = await formatContext.ioReader.readString(Number(BigInt.asIntN(32, length)));
+                    if (value && value.charCodeAt(value.length - 1) === 0) {
+                        value = value.substring(0, value.length - 1);
+                    }
                     break;
                 case 10 /* EbmlType.BOOL */:
                     value = !!(await readUint(formatContext, length));

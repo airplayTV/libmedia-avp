@@ -345,7 +345,6 @@ class Avcc2AnnexbFilter extends _AVBSFilter__WEBPACK_IMPORTED_MODULE_2__["defaul
         this.cache = 0;
     }
     sendAVPacket(avpacket) {
-        const buffer = (0,cheap_std_memory__WEBPACK_IMPORTED_MODULE_9__.mapSafeUint8Array)(cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[20](avpacket + 24), cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[15](avpacket + 28));
         if (cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[15](avpacket + 36) & 64 /* AVPacketFlags.AV_PKT_FLAG_H26X_ANNEXB */) {
             (0,avutil_util_avpacket__WEBPACK_IMPORTED_MODULE_3__.refAVPacket)(this.cache, avpacket);
         }
@@ -357,6 +356,7 @@ class Avcc2AnnexbFilter extends _AVBSFilter__WEBPACK_IMPORTED_MODULE_2__["defaul
             if (element) {
                 extradata = (0,cheap_std_memory__WEBPACK_IMPORTED_MODULE_9__.mapSafeUint8Array)(cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[20](element), cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[25](element + 4));
             }
+            const buffer = (0,cheap_std_memory__WEBPACK_IMPORTED_MODULE_9__.mapSafeUint8Array)(cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[20](avpacket + 24), cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[15](avpacket + 28));
             if (cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[15](this.inCodecpar + 4) === 27 /* AVCodecID.AV_CODEC_ID_H264 */) {
                 convert = avutil_codecs_h264__WEBPACK_IMPORTED_MODULE_4__.avcc2Annexb(buffer, extradata);
             }

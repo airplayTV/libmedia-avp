@@ -1575,9 +1575,10 @@ async function readRtmpPacket(ioReader, chunkSize, prevPacketMap) {
 /* harmony export */   NOPTS_VALUE_BIGINT: () => (/* binding */ NOPTS_VALUE_BIGINT),
 /* harmony export */   NTP_OFFSET_US: () => (/* binding */ NTP_OFFSET_US),
 /* harmony export */   UINT16_MAX: () => (/* binding */ UINT16_MAX),
-/* harmony export */   UINT32_MAX: () => (/* binding */ UINT32_MAX)
+/* harmony export */   UINT32_MAX: () => (/* binding */ UINT32_MAX),
+/* harmony export */   UINT64_MAX: () => (/* binding */ UINT64_MAX)
 /* harmony export */ });
-/* unused harmony exports NTP_OFFSET, AV_TIME_BASE1_Q, INT8_MAX, INT16_MAX, INT8_MIN, INT16_MIN, INT32_MIN, UINT8_MAX, UINT64_MAX */
+/* unused harmony exports NTP_OFFSET, AV_TIME_BASE1_Q, INT8_MAX, INT16_MAX, INT8_MIN, INT16_MIN, INT32_MIN, UINT8_MAX */
 /* harmony import */ var _struct_rational__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./struct/rational */ "./src/avutil/struct/rational.ts");
 /*
  * libmedia constant

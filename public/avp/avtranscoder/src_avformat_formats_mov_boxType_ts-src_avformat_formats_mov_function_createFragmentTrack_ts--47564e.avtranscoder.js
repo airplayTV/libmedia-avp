@@ -114,6 +114,7 @@ const ContainerBoxs = [
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   "default": () => (/* binding */ createFragmentTrack)
 /* harmony export */ });
+/* harmony import */ var avutil_constant__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! avutil/constant */ "./src/avutil/constant.ts");
 /*
  * libmedia create fragment track
  *
@@ -138,6 +139,7 @@ const ContainerBoxs = [
  * Lesser General Public License for more details.
  *
  */
+
 function createFragmentTrack() {
     return {
         trackId: 0,
@@ -158,7 +160,10 @@ function createFragmentTrack() {
         sampleCompositionTimeOffset: [],
         baseIsMoof: false,
         ioWriter: null,
-        buffers: []
+        buffers: [],
+        lastFragIndexDts: BigInt(0),
+        tfdtDelay: avutil_constant__WEBPACK_IMPORTED_MODULE_0__.NOPTS_VALUE_BIGINT,
+        trunPtsDelay: BigInt(0)
     };
 }
 

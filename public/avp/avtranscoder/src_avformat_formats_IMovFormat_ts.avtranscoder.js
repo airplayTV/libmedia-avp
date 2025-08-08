@@ -126,7 +126,7 @@ class IMovFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_6__["default"] {
             while (!this.context.foundMoov) {
                 const pos = formatContext.ioReader.getPos();
                 if (pos === fileSize) {
-                    common_util_logger__WEBPACK_IMPORTED_MODULE_2__.error('the file format is not mp4', cheap__fileName__0, 108);
+                    common_util_logger__WEBPACK_IMPORTED_MODULE_2__.error('the file format is not mp4', cheap__fileName__0, 111);
                     return avutil_error__WEBPACK_IMPORTED_MODULE_3__.DATA_INVALID;
                 }
                 size = await formatContext.ioReader.readUint32();
@@ -136,7 +136,7 @@ class IMovFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_6__["default"] {
                     size = Number(await formatContext.ioReader.readUint64());
                 }
                 if (size < 8 || fileSize && (pos + BigInt(Math.floor(size)) > fileSize)) {
-                    common_util_logger__WEBPACK_IMPORTED_MODULE_2__.error(`invalid box size ${size}`, cheap__fileName__0, 121);
+                    common_util_logger__WEBPACK_IMPORTED_MODULE_2__.error(`invalid box size ${size}`, cheap__fileName__0, 124);
                     return avutil_error__WEBPACK_IMPORTED_MODULE_3__.DATA_INVALID;
                 }
                 if (type === (0,_function_mktag__WEBPACK_IMPORTED_MODULE_4__["default"])("mdat" /* BoxType.MDAT */)) {
@@ -191,9 +191,9 @@ class IMovFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_6__["default"] {
             return ret;
         }
         catch (error) {
-            common_util_logger__WEBPACK_IMPORTED_MODULE_2__.error(error.message, cheap__fileName__0, 183);
+            common_util_logger__WEBPACK_IMPORTED_MODULE_2__.error(error.message, cheap__fileName__0, 186);
             if (!this.context.foundMoov) {
-                common_util_logger__WEBPACK_IMPORTED_MODULE_2__.error('moov not found', cheap__fileName__0, 186);
+                common_util_logger__WEBPACK_IMPORTED_MODULE_2__.error('moov not found', cheap__fileName__0, 189);
             }
             return formatContext.ioReader.error;
         }
@@ -284,7 +284,13 @@ class IMovFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_6__["default"] {
     }
     async readAVPacket(formatContext, avpacket) {
         try {
-            if (this.context.fragment && !this.context.currentFragment) {
+            const hasSample = !!formatContext.streams.find((stream) => {
+                const context = stream.privData;
+                return context.samplesIndex?.length && context.sampleEnd === false;
+            });
+            // 一些 fmp4 的 moov 里面存着一段样本
+            // 这里先判断有没有 sample
+            if (!hasSample && this.context.fragment && !this.context.currentFragment) {
                 while (!this.context.currentFragment) {
                     const pos = formatContext.ioReader.getPos();
                     const size = await formatContext.ioReader.readUint32();
@@ -321,7 +327,7 @@ class IMovFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_6__["default"] {
         catch (error) {
             if (formatContext.ioReader.error !== -1048576 /* IOError.END */
                 && formatContext.ioReader.error !== -1048572 /* IOError.ABORT */) {
-                common_util_logger__WEBPACK_IMPORTED_MODULE_2__.error(`read packet error, ${error}`, cheap__fileName__0, 339);
+                common_util_logger__WEBPACK_IMPORTED_MODULE_2__.error(`read packet error, ${error}`, cheap__fileName__0, 348);
                 return avutil_error__WEBPACK_IMPORTED_MODULE_3__.DATA_INVALID;
             }
             return formatContext.ioReader.error;
@@ -361,6 +367,9 @@ class IMovFormat extends _IFormat__WEBPACK_IMPORTED_MODULE_6__["default"] {
                     return 1;
                 });
                 if (index > -1) {
+                    if (index > 0 && streamContext.fragIndexes[index].time > pts) {
+                        index--;
+                    }
                     await formatContext.ioReader.seek(streamContext.fragIndexes[index].pos, true);
                     resetFragment();
                     return now;
@@ -896,6 +905,7 @@ function buildIndex(stream, movContext) {
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   "default": () => (/* binding */ createFragmentTrack)
 /* harmony export */ });
+/* harmony import */ var avutil_constant__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! avutil/constant */ "./src/avutil/constant.ts");
 /*
  * libmedia create fragment track
  *
@@ -920,6 +930,7 @@ function buildIndex(stream, movContext) {
  * Lesser General Public License for more details.
  *
  */
+
 function createFragmentTrack() {
     return {
         trackId: 0,
@@ -940,7 +951,10 @@ function createFragmentTrack() {
         sampleCompositionTimeOffset: [],
         baseIsMoof: false,
         ioWriter: null,
-        buffers: []
+        buffers: [],
+        lastFragIndexDts: BigInt(0),
+        tfdtDelay: avutil_constant__WEBPACK_IMPORTED_MODULE_0__.NOPTS_VALUE_BIGINT,
+        trunPtsDelay: BigInt(0)
     };
 }
 
@@ -1496,6 +1510,16 @@ async function readMoof(ioReader, formatContext, movContext, atom) {
 }
 async function readMfra(ioReader, formatContext, movContext, atom) {
     const endPos = ioReader.getPos() + BigInt(Math.floor(atom.size));
+    const samplesIndexMap = {};
+    formatContext.streams.forEach((stream) => {
+        const context = stream.privData;
+        samplesIndexMap[stream.index] = {
+            samples: context.samplesIndex,
+            currentSample: context.currentSample,
+            sampleEnd: context.sampleEnd
+        };
+        context.samplesIndex = [];
+    });
     while (ioReader.getPos() < endPos) {
         const pos = ioReader.getPos();
         const size = await ioReader.readUint32();
@@ -1564,6 +1588,12 @@ async function readMfra(ioReader, formatContext, movContext, atom) {
         await ioReader.seek(pos + BigInt(Math.floor(size)), false, false);
     }
     movContext.currentFragment = null;
+    formatContext.streams.forEach((stream) => {
+        const context = stream.privData;
+        context.samplesIndex = samplesIndexMap[stream.index]?.samples ?? [];
+        context.currentSample = samplesIndexMap[stream.index]?.currentSample ?? 0;
+        context.sampleEnd = samplesIndexMap[stream.index]?.sampleEnd ?? false;
+    });
 }
 
 

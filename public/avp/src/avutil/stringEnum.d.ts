@@ -69,6 +69,13 @@ export declare const AudioCodecString2CodecId: {
     cook: AVCodecID;
     sipr: AVCodecID;
     ralf: AVCodecID;
+    pcm_u8: AVCodecID;
+    pcm_s16le: AVCodecID;
+    pcm_s24le: AVCodecID;
+    pcm_s32le: AVCodecID;
+    pcm_s64le: AVCodecID;
+    pcm_f32le: AVCodecID;
+    pcm_f64le: AVCodecID;
 };
 export declare const SubtitleCodecString2CodecId: {
     webvtt: AVCodecID;

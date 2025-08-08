@@ -94,13 +94,13 @@ class Annexb2AvccFilter extends _AVBSFilter__WEBPACK_IMPORTED_MODULE_2__["defaul
         this.cache = 0;
     }
     sendAVPacket(avpacket) {
-        const buffer = (0,cheap_std_memory__WEBPACK_IMPORTED_MODULE_7__.mapSafeUint8Array)(cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[20](avpacket + 24), cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[15](avpacket + 28));
         if (!(cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[15](avpacket + 36) & 64 /* AVPacketFlags.AV_PKT_FLAG_H26X_ANNEXB */)) {
             (0,avutil_util_avpacket__WEBPACK_IMPORTED_MODULE_3__.refAVPacket)(this.cache, avpacket);
         }
         else {
             (0,avutil_util_avpacket__WEBPACK_IMPORTED_MODULE_3__.copyAVPacketProps)(this.cache, avpacket);
             let convert;
+            const buffer = (0,cheap_std_memory__WEBPACK_IMPORTED_MODULE_7__.mapSafeUint8Array)(cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[20](avpacket + 24), cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[15](avpacket + 28));
             if (cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[15](this.inCodecpar + 4) === 27 /* AVCodecID.AV_CODEC_ID_H264 */) {
                 convert = avutil_codecs_h264__WEBPACK_IMPORTED_MODULE_4__.annexb2Avcc(buffer, this.reverseSps);
             }
@@ -244,7 +244,10 @@ const defaultOptions = {
     fastOpen: false,
     defaultBaseIsMoof: false,
     reverseSpsInAvcc: false,
-    ignoreEncryption: false
+    ignoreEncryption: false,
+    minFragmentLength: 5000,
+    minFragmentIndexLength: 5000,
+    hasTfra: true
 };
 class OMovFormat extends _OFormat__WEBPACK_IMPORTED_MODULE_4__["default"] {
     type = 1 /* AVFormat.MOV */;
@@ -433,6 +436,9 @@ class OMovFormat extends _OFormat__WEBPACK_IMPORTED_MODULE_4__["default"] {
                 size: 0
             });
         }
+        if (!formatContext.getStreamByMediaType(0 /* AVMediaType.AVMEDIA_TYPE_VIDEO */)) {
+            this.context.audioOnly = true;
+        }
         return 0;
     }
     updateCurrentChunk(formatContext) {
@@ -540,6 +546,17 @@ class OMovFormat extends _OFormat__WEBPACK_IMPORTED_MODULE_4__["default"] {
                 }
                 if (track.sampleDurations.length) {
                     track.defaultSampleDuration = track.sampleDurations[0];
+                }
+                if (this.options.hasTfra) {
+                    if (!streamContext.fragIndexes.length
+                        || this.options.fragmentMode === 0 /* MovFragmentMode.GOP */
+                        || (0,avutil_util_rational__WEBPACK_IMPORTED_MODULE_19__.avRescaleQ)(track.baseDataOffset - track.lastFragIndexDts, stream.timeBase, avutil_constant__WEBPACK_IMPORTED_MODULE_15__.AV_MILLI_TIME_BASE_Q) >= this.options.minFragmentIndexLength) {
+                        streamContext.fragIndexes.push({
+                            pos: track.baseDataOffset,
+                            time: track.baseMediaDecodeTime + BigInt(Math.floor(track.sampleCompositionTimeOffset[0] ?? 0))
+                        });
+                        track.lastFragIndexDts = streamContext.lastDts;
+                    }
                 }
             });
             formatContext.ioWriter.flush();
@@ -650,17 +667,17 @@ class OMovFormat extends _OFormat__WEBPACK_IMPORTED_MODULE_4__["default"] {
     }
     writeAVPacket(formatContext, avpacket) {
         if (!cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumRead[15](avpacket + 28)) {
-            common_util_logger__WEBPACK_IMPORTED_MODULE_12__.warn(`packet\'s size is 0: ${cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumRead[15](avpacket + 32)}, ignore it`, cheap__fileName__5, 581);
+            common_util_logger__WEBPACK_IMPORTED_MODULE_12__.warn(`packet\'s size is 0: ${cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumRead[15](avpacket + 32)}, ignore it`, cheap__fileName__5, 639);
             return 0;
         }
         const stream = formatContext.getStreamByIndex(cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumRead[15](avpacket + 32));
         if (!stream) {
-            common_util_logger__WEBPACK_IMPORTED_MODULE_12__.warn(`can not found the stream width the avpacket\'s streamIndex: ${cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumRead[15](avpacket + 32)}, ignore it`, cheap__fileName__5, 588);
+            common_util_logger__WEBPACK_IMPORTED_MODULE_12__.warn(`can not found the stream width the avpacket\'s streamIndex: ${cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumRead[15](avpacket + 32)}, ignore it`, cheap__fileName__5, 646);
             return;
         }
         const streamContext = stream.privData;
-        const dts = (0,avutil_util_rational__WEBPACK_IMPORTED_MODULE_19__.avRescaleQ2)(cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumRead[17](avpacket + 16), avpacket + 72, stream.timeBase);
-        const pts = (0,avutil_util_rational__WEBPACK_IMPORTED_MODULE_19__.avRescaleQ2)(cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumRead[17](avpacket + 8) !== avutil_constant__WEBPACK_IMPORTED_MODULE_15__.NOPTS_VALUE_BIGINT ? cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumRead[17](avpacket + 8) : cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumRead[17](avpacket + 16), avpacket + 72, stream.timeBase);
+        let dts = (0,avutil_util_rational__WEBPACK_IMPORTED_MODULE_19__.avRescaleQ2)(cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumRead[17](avpacket + 16), avpacket + 72, stream.timeBase);
+        let pts = (0,avutil_util_rational__WEBPACK_IMPORTED_MODULE_19__.avRescaleQ2)(cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumRead[17](avpacket + 8) !== avutil_constant__WEBPACK_IMPORTED_MODULE_15__.NOPTS_VALUE_BIGINT ? cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumRead[17](avpacket + 8) : cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumRead[17](avpacket + 16), avpacket + 72, stream.timeBase);
         const duration = cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumRead[17](avpacket + 48) !== avutil_constant__WEBPACK_IMPORTED_MODULE_15__.NOPTS_VALUE_BIGINT ? (0,avutil_util_rational__WEBPACK_IMPORTED_MODULE_19__.avRescaleQ2)(cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumRead[17](avpacket + 48), avpacket + 72, stream.timeBase) : -BigInt(1);
         if ((stream.codecpar.codecId === 27 /* AVCodecID.AV_CODEC_ID_H264 */
             || stream.codecpar.codecId === 173 /* AVCodecID.AV_CODEC_ID_HEVC */
@@ -680,9 +697,24 @@ class OMovFormat extends _OFormat__WEBPACK_IMPORTED_MODULE_4__["default"] {
                 return track.streamIndex === cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumRead[15](avpacket + 32);
             });
             if (track) {
+                if (track.tfdtDelay === avutil_constant__WEBPACK_IMPORTED_MODULE_15__.NOPTS_VALUE_BIGINT) {
+                    if (dts < 0) {
+                        track.tfdtDelay = -dts;
+                    }
+                    else {
+                        track.tfdtDelay = BigInt(0);
+                    }
+                    if (pts < 0) {
+                        track.trunPtsDelay = track.tfdtDelay;
+                    }
+                }
+                dts += track.tfdtDelay;
+                pts += track.trunPtsDelay;
                 if (this.options.fragmentMode === 0 /* MovFragmentMode.GOP */
-                    && stream.codecpar.codecType === 0 /* AVMediaType.AVMEDIA_TYPE_VIDEO */
-                    && cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumRead[15](avpacket + 36) & 1 /* AVPacketFlags.AV_PKT_FLAG_KEY */
+                    && (stream.codecpar.codecType === 0 /* AVMediaType.AVMEDIA_TYPE_VIDEO */
+                        && cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumRead[15](avpacket + 36) & 1 /* AVPacketFlags.AV_PKT_FLAG_KEY */
+                        || this.context.audioOnly
+                            && (0,avutil_util_rational__WEBPACK_IMPORTED_MODULE_19__.avRescaleQ)(dts - track.baseMediaDecodeTime, stream.timeBase, avutil_constant__WEBPACK_IMPORTED_MODULE_15__.AV_MILLI_TIME_BASE_Q) >= this.options.minFragmentLength)
                     || this.options.fragmentMode === 1 /* MovFragmentMode.FRAME */) {
                     if (this.context.currentFragment.tracks.length === 1) {
                         this.updateCurrentFragment(formatContext, dts);
@@ -751,7 +783,7 @@ class OMovFormat extends _OFormat__WEBPACK_IMPORTED_MODULE_4__["default"] {
                 this.context.currentFragment.firstWrote = true;
             }
             else {
-                common_util_logger__WEBPACK_IMPORTED_MODULE_12__.warn(`can not found track width streamIndex ${cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumRead[15](avpacket + 32)}, ignore it`, cheap__fileName__5, 711);
+                common_util_logger__WEBPACK_IMPORTED_MODULE_12__.warn(`can not found track width streamIndex ${cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_1__.CTypeEnumRead[15](avpacket + 32)}, ignore it`, cheap__fileName__5, 786);
             }
         }
         else {
@@ -860,7 +892,7 @@ class OMovFormat extends _OFormat__WEBPACK_IMPORTED_MODULE_4__["default"] {
             this.context.duration = duration;
             const mdat = this.context.boxsPositionInfo[this.context.boxsPositionInfo.length - 1];
             if (mdat.type !== "mdat" /* BoxType.MDAT */) {
-                common_util_logger__WEBPACK_IMPORTED_MODULE_12__.error('last box is not mdat', cheap__fileName__5, 842);
+                common_util_logger__WEBPACK_IMPORTED_MODULE_12__.error('last box is not mdat', cheap__fileName__5, 917);
             }
             mdat.size = Number(formatContext.ioWriter.getPos() - mdat.pos);
             if (mdat.size > avutil_constant__WEBPACK_IMPORTED_MODULE_15__.UINT32_MAX) {
@@ -924,8 +956,13 @@ class OMovFormat extends _OFormat__WEBPACK_IMPORTED_MODULE_4__["default"] {
                 }
             });
             this.updateCurrentFragment(formatContext);
-            formatContext.ioWriter.writeUint32(8);
-            formatContext.ioWriter.writeString("mfra" /* BoxType.MFRA */);
+            if (this.options.hasTfra) {
+                _mov_omov__WEBPACK_IMPORTED_MODULE_7__.writeMfra(formatContext.ioWriter, formatContext, this.context);
+            }
+            else {
+                formatContext.ioWriter.writeUint32(8);
+                formatContext.ioWriter.writeString("mfra" /* BoxType.MFRA */);
+            }
             formatContext.ioWriter.flush();
         }
         return 0;
@@ -1069,6 +1106,7 @@ const ContainerBoxs = [
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   "default": () => (/* binding */ createFragmentTrack)
 /* harmony export */ });
+/* harmony import */ var avutil_constant__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! avutil/constant */ "./src/avutil/constant.ts");
 /*
  * libmedia create fragment track
  *
@@ -1093,6 +1131,7 @@ const ContainerBoxs = [
  * Lesser General Public License for more details.
  *
  */
+
 function createFragmentTrack() {
     return {
         trackId: 0,
@@ -1113,7 +1152,10 @@ function createFragmentTrack() {
         sampleCompositionTimeOffset: [],
         baseIsMoof: false,
         ioWriter: null,
-        buffers: []
+        buffers: [],
+        lastFragIndexDts: BigInt(0),
+        tfdtDelay: avutil_constant__WEBPACK_IMPORTED_MODULE_0__.NOPTS_VALUE_BIGINT,
+        trunPtsDelay: BigInt(0)
     };
 }
 
@@ -1848,6 +1890,7 @@ const tag2CodecId = {
 
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   writeFtyp: () => (/* binding */ writeFtyp),
+/* harmony export */   writeMfra: () => (/* binding */ writeMfra),
 /* harmony export */   writeMoof: () => (/* binding */ writeMoof),
 /* harmony export */   writeMoov: () => (/* binding */ writeMoov)
 /* harmony export */ });
@@ -2066,6 +2109,46 @@ function writeMoof(ioWriter, formatContext, movContext) {
         size
     });
     movContext.currentFragment.size = size;
+}
+function writeMfra(ioWriter, formatContext, movContext) {
+    let size = 24;
+    common_util_array__WEBPACK_IMPORTED_MODULE_4__.each(movContext.currentFragment.tracks, (track) => {
+        const stream = formatContext.streams.find((stream) => {
+            return stream.index === track.streamIndex;
+        });
+        const streamContext = stream.privData;
+        if (streamContext.fragIndexes.length) {
+            size += 24 + streamContext.fragIndexes.length * 19;
+        }
+    });
+    ioWriter.writeUint32(size);
+    ioWriter.writeString("mfra" /* BoxType.MFRA */);
+    common_util_array__WEBPACK_IMPORTED_MODULE_4__.each(movContext.currentFragment.tracks, (track) => {
+        const stream = formatContext.streams.find((stream) => {
+            return stream.index === track.streamIndex;
+        });
+        const streamContext = stream.privData;
+        if (streamContext.fragIndexes.length) {
+            ioWriter.writeUint32(24 + streamContext.fragIndexes.length * 19);
+            ioWriter.writeString("tfra" /* BoxType.TFRA */);
+            ioWriter.writeUint8(1);
+            ioWriter.writeUint24(0);
+            ioWriter.writeUint32(track.trackId);
+            ioWriter.writeUint32(0);
+            ioWriter.writeUint32(streamContext.fragIndexes.length);
+            streamContext.fragIndexes.forEach((item) => {
+                ioWriter.writeUint64(item.time);
+                ioWriter.writeUint64(item.pos);
+                ioWriter.writeUint8(1);
+                ioWriter.writeUint8(1);
+                ioWriter.writeUint8(1);
+            });
+        }
+    });
+    ioWriter.writeUint32(16);
+    ioWriter.writeString("mfro" /* BoxType.MFRO */);
+    ioWriter.writeUint32(0);
+    ioWriter.writeUint32(size);
 }
 
 

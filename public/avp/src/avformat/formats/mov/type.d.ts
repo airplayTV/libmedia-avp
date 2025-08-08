@@ -43,6 +43,9 @@ export interface FragmentTrack {
         sampleEncryption: Omit<EncryptionInfo, 'scheme' | 'keyId' | 'cryptByteBlock' | 'skipByteBlock'>[];
         offsetPos?: bigint;
     };
+    lastFragIndexDts: int64;
+    tfdtDelay: int64;
+    trunPtsDelay: int64;
 }
 export interface Sample {
     dts: bigint;
@@ -125,6 +128,7 @@ export interface MOVContext {
     ignoreEncryption?: boolean;
     parsers?: Partial<Record<number, (ioReader: IOReader, stream: AVStream, atom: Atom, movContext: MOVContext) => Promise<void>>>;
     parseOneBox?: (ioReader: IOReader, stream: AVStream, atom: Atom, movContext: MOVContext) => Promise<void>;
+    audioOnly?: boolean;
 }
 export interface MOVStreamContext {
     chunkOffsets: bigint[];

@@ -2132,7 +2132,7 @@ async function seekInBytes(context, stream, timestamp, firstPacketPos, readAVPac
     const pointPts = (0,avutil_util_rational__WEBPACK_IMPORTED_MODULE_4__.avRescaleQ)(timestamp, stream.timeBase, avutil_constant__WEBPACK_IMPORTED_MODULE_3__.AV_MILLI_TIME_BASE_Q);
     // 头十秒直接回到开始位置
     if (pointPts < BigInt(10000)) {
-        common_util_logger__WEBPACK_IMPORTED_MODULE_8__.debug(`seek pts is earlier then 10s, seek to first packet pos(${firstPacketPos}) directly`, cheap__fileName__0, 62);
+        common_util_logger__WEBPACK_IMPORTED_MODULE_8__.debug(`seek pts is earlier then 10s, seek to first packet pos(${firstPacketPos}) directly`, cheap__fileName__0, 63);
         await context.ioReader.seek(firstPacketPos);
         return now;
     }
@@ -2150,25 +2150,48 @@ async function seekInBytes(context, stream, timestamp, firstPacketPos, readAVPac
     const avpacket = (0,avutil_util_avpacket__WEBPACK_IMPORTED_MODULE_6__.createAVPacket)();
     let seekMax = fileSize;
     let seekMin = BigInt(0);
-    while (true) {
+    failed: while (true) {
         if (seekMax - seekMin < length) {
-            pos = seekMin;
-            break;
+            bytes = seekMin;
         }
         await context.ioReader.seek(bytes);
         await syncAVPacket(context);
         if (context.ioReader.flags & 8 /* IOFlags.ABORT */) {
             break;
         }
-        const now = context.ioReader.getPos();
         let ret = await readAVPacket(context, avpacket);
+        let now = cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[17](avpacket + 56);
         if (ret >= 0) {
             const currentPts = (0,avutil_util_rational__WEBPACK_IMPORTED_MODULE_4__.avRescaleQ2)(cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[17](avpacket + 8), avpacket + 72, avutil_constant__WEBPACK_IMPORTED_MODULE_3__.AV_MILLI_TIME_BASE_Q);
-            const diff = currentPts - pointPts;
+            let diff = currentPts - pointPts;
             common_util_logger__WEBPACK_IMPORTED_MODULE_8__.debug(`try to seek to pos: ${bytes}, got packet pts: ${cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[17](avpacket + 8)}(${currentPts}ms), diff: ${diff}ms`, cheap__fileName__0, 100);
             // seek 时间戳的前面 10 秒内
-            if (diff <= BigInt(0) && -diff < BigInt(10000)) {
-                pos = now;
+            if (diff <= BigInt(0) && -diff < BigInt(10000) || seekMax - seekMin < length) {
+                // 查找最近的关键帧
+                const keyPos = [now];
+                while (diff <= 0) {
+                    if (cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[15](avpacket + 32) === stream.index && (cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[15](avpacket + 36) & 1 /* AVPacketFlags.AV_PKT_FLAG_KEY */)) {
+                        keyPos.push(now);
+                    }
+                    (0,avutil_util_avpacket__WEBPACK_IMPORTED_MODULE_6__.unrefAVPacket)(avpacket);
+                    ret = await readAVPacket(context, avpacket);
+                    if (ret < 0) {
+                        if (ret === -1048576 /* IOError.END */) {
+                            break;
+                        }
+                        else if (ret === -1048575 /* IOError.AGAIN */) {
+                            continue;
+                        }
+                        // 失败了重新 seek 回原来的位置
+                        else {
+                            pos = avutil_constant__WEBPACK_IMPORTED_MODULE_3__.NOPTS_VALUE_BIGINT;
+                            break failed;
+                        }
+                    }
+                    now = cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[17](avpacket + 56);
+                    diff = (0,avutil_util_rational__WEBPACK_IMPORTED_MODULE_4__.avRescaleQ2)(cheap_ctypeEnumRead__WEBPACK_IMPORTED_MODULE_0__.CTypeEnumRead[17](avpacket + 8), avpacket + 72, avutil_constant__WEBPACK_IMPORTED_MODULE_3__.AV_MILLI_TIME_BASE_Q) - pointPts;
+                }
+                pos = keyPos.pop();
                 break;
             }
             // seek 后面
@@ -2193,7 +2216,7 @@ async function seekInBytes(context, stream, timestamp, firstPacketPos, readAVPac
     }
     (0,avutil_util_avpacket__WEBPACK_IMPORTED_MODULE_6__.destroyAVPacket)(avpacket);
     if (pos !== avutil_constant__WEBPACK_IMPORTED_MODULE_3__.NOPTS_VALUE_BIGINT) {
-        common_util_logger__WEBPACK_IMPORTED_MODULE_8__.debug(`finally seek to pos ${pos}`, cheap__fileName__0, 131);
+        common_util_logger__WEBPACK_IMPORTED_MODULE_8__.debug(`finally seek to pos ${pos}`, cheap__fileName__0, 155);
         await context.ioReader.seek(pos);
         await syncAVPacket(context);
         return now;

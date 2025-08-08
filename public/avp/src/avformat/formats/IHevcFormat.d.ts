@@ -5,6 +5,9 @@ import { AVFormat } from 'avutil/avformat';
 import AVStream from 'avutil/AVStream';
 import { Rational } from 'avutil/struct/rational';
 export interface IHevcFormatOptions {
+    /**
+     * 显示帧率
+     */
     framerate?: Rational;
 }
 export default class IHevcFormat extends IFormat {

@@ -2668,7 +2668,14 @@ const AudioCodecString2CodecId = {
     'wmav2': 86024 /* AVCodecID.AV_CODEC_ID_WMAV2 */,
     'cook': 86036 /* AVCodecID.AV_CODEC_ID_COOK */,
     'sipr': 86057 /* AVCodecID.AV_CODEC_ID_SIPR */,
-    'ralf': 86073 /* AVCodecID.AV_CODEC_ID_RALF */
+    'ralf': 86073 /* AVCodecID.AV_CODEC_ID_RALF */,
+    'pcm_u8': 65541 /* AVCodecID.AV_CODEC_ID_PCM_U8 */,
+    'pcm_s16le': 65536 /* AVCodecID.AV_CODEC_ID_PCM_S16LE */,
+    'pcm_s24le': 65548 /* AVCodecID.AV_CODEC_ID_PCM_S24LE */,
+    'pcm_s32le': 65544 /* AVCodecID.AV_CODEC_ID_PCM_S32LE */,
+    'pcm_s64le': 65567 /* AVCodecID.AV_CODEC_ID_PCM_S64LE */,
+    'pcm_f32le': 65557 /* AVCodecID.AV_CODEC_ID_PCM_F32LE */,
+    'pcm_f64le': 65559 /* AVCodecID.AV_CODEC_ID_PCM_F64LE */
 };
 const SubtitleCodecString2CodecId = {
     'webvtt': 94226 /* AVCodecID.AV_CODEC_ID_WEBVTT */,
